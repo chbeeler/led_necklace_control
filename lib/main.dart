@@ -429,7 +429,7 @@ class _HomePageState extends State<HomePage> {
         SVC_LED,
         charUuid,
         Uint8List.fromList([v & 0xFF]),
-        withoutResponse: true,
+        withoutResponse: false,
       );
     } catch (e) {
       _setStatus('Write failed: $e');
@@ -459,7 +459,7 @@ class _HomePageState extends State<HomePage> {
         final bytes = Uint8List(4);
         final bd = ByteData.sublistView(bytes);
         bd.setUint32(0, v >>> 0, Endian.little);
-        await UniversalBle.write(deviceId, SVC_LED, charUuid, bytes, withoutResponse: true);
+        await UniversalBle.write(deviceId, SVC_LED, charUuid, bytes, withoutResponse: false);
       } else {
         // 1-byte payload (recommended MVP)
         await UniversalBle.write(
@@ -467,7 +467,7 @@ class _HomePageState extends State<HomePage> {
           SVC_LED,
           charUuid,
           Uint8List.fromList([uiFallbackByte & 0xFF]),
-          withoutResponse: true,
+          withoutResponse: false,
         );
       }
     } catch (e) {
