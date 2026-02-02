@@ -197,12 +197,12 @@ class _HomePageState extends State<HomePage> {
         scanFilter: ScanFilter(
           // Filtering by service is nice when it works, but some platforms omit it in advertisements.
           // Keeping it null is often more reliable; you can enable it later:
-          // withServices: [SVC_LED],
+          withServices: [SVC_LED],
         ),
       );
 
-      // Auto-stop after 6 seconds
-      await Future<void>.delayed(const Duration(seconds: 6));
+      // Auto-stop after 4 seconds
+      await Future<void>.delayed(const Duration(seconds: 4));
     } catch (e) {
       _setStatus('Scan failed: $e');
     } finally {
