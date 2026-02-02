@@ -181,6 +181,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _startScan() async {
+    _setStatus('Requesting permissions…');
+    await UniversalBle.requestPermissions(withAndroidFineLocation: false);
+    _setStatus('Permission result: ok');
+
     if (_busy) return;
     setState(() {
       _busy = true;
