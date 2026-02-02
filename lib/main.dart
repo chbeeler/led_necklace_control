@@ -67,7 +67,7 @@ const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
 // If your FW expects just 1 byte, keep false (recommended for MVP).
-const bool SEND_SLIDERS_AS_U32 = false;
+const bool SEND_SLIDERS_AS_U32 = true;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
