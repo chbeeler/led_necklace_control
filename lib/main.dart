@@ -87,10 +87,10 @@ class _HomePageState extends State<HomePage> {
   String _deviceName = 'LED Necklace';
 
   // ---- Settings ----
-  double _brightness = 120; // UI 0..255
+  double _brightness = 120; // UI 0..500
   LedMode _mode = LedMode.eq;
   double _filter = 0; // 0..255
-  double _sensitivity = 128; // 0..255
+  double _sensitivity = 1000; // 0..1000
 
   // vBat threshold slider: 3.0..4.3 V (sent as V*10 as u16/u32)
   double _vbatThresV = 3.8;
@@ -311,7 +311,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final b = await UniversalBle.read(deviceId, SVC_LED, CH_BRIGHTNESS);
       final v = _readSliderValue(b);
-      setState(() => _brightness = v.toDouble().clamp(0, 255));
+      setState(() => _brightness = v.toDouble().clamp(0, 1000));
     } catch (_) {}
 
     try {
@@ -329,7 +329,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final s = await UniversalBle.read(deviceId, SVC_LED, CH_SENSITIVITY);
       final v = _readSliderValue(s);
-      setState(() => _sensitivity = v.toDouble().clamp(0, 255));
+      setState(() => _sensitivity = v.toDouble().clamp(0, 1000));
     } catch (_) {}
   }
 
@@ -359,13 +359,13 @@ class _HomePageState extends State<HomePage> {
       final id = _deviceId;
       if (id == null || !_connected) return;
 
-      // UI: 0..255
-      final ui = _brightness.round().clamp(0, 255);
+      // UI: 0..500
+      final ui = _brightness.round().clamp(0, 500);
 
       // You wanted scaling in the app before sending:
       // Example: send 0..1020 in steps of 4 (like your FW earlier), but encoded as u32.
       // If your FW now expects plain 0..255, set scale=1 and SEND_SLIDERS_AS_U32=false.
-      const int scale = 4;
+      const int scale = 1;
       final send = (ui * scale).clamp(0, 4095);
 
       await _writeSlider(id, CH_BRIGHTNESS, send, uiFallbackByte: ui);
@@ -399,7 +399,7 @@ class _HomePageState extends State<HomePage> {
     _tSens = Timer(const Duration(milliseconds: 120), () async {
       final id = _deviceId;
       if (id == null || !_connected) return;
-      final ui = _sensitivity.round().clamp(0, 255);
+      final ui = _sensitivity.round().clamp(0, 1000);
       await _writeSlider(id, CH_SENSITIVITY, ui, uiFallbackByte: ui);
     });
   }
@@ -566,7 +566,7 @@ class _HomePageState extends State<HomePage> {
           _SettingsCard(
             enabled: _connected && !_busy,
             brightness: _brightness,
-            brightnessLabel: '0..255 • sending scaled value',
+            brightnessLabel: '0..500',
             onBrightnessChanged: _debouncedWriteBrightness,
             mode: _mode,
             onModeChanged: _debouncedWriteMode,
@@ -753,8 +753,8 @@ class _SettingsCard extends StatelessWidget {
               enabled: enabled,
               value: brightness,
               min: 0,
-              max: 255,
-              divisions: 255,
+              max: 500,
+              divisions: 250,
               onChanged: enabled ? onBrightnessChanged : null,
             ),
 
@@ -802,12 +802,12 @@ class _SettingsCard extends StatelessWidget {
 
             _LabeledSlider(
               title: 'Sensitivity',
-              subtitle: '0..255 • $sensitivityLabel',
+              subtitle: '0..1000 • $sensitivityLabel',
               enabled: enabled,
               value: sensitivity,
               min: 0,
-              max: 255,
-              divisions: 255,
+              max: 1000,
+              divisions: 500,
               onChanged: enabled ? onSensitivityChanged : null,
             ),
           ],
@@ -828,7 +828,7 @@ class _BatteryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    double pctFromV(double v) => ((v - 3.3) / (4.2 - 3.3)).clamp(0.0, 1.0);
+    double pctFromV(double v) => ((v - 3.7) / (4.2 - 3.7)).clamp(0.0, 1.0);
 
     final v = vbat;
     final pct = v == null ? null : pctFromV(v);
