@@ -495,25 +495,33 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Necklace Control'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _ConnectionChip(connected: _connected, status: _status),
-          ),
-          if (!_connected)
-            FilledButton.icon(
-              onPressed: _busy ? null : _startScan,
-              icon: const Icon(Icons.search),
-              label: const Text('Scan'),
-            )
-          else
-            OutlinedButton.icon(
-              onPressed: _busy ? null : _disconnect,
-              icon: const Icon(Icons.link_off),
-              label: const Text('Disconnect'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _ConnectionChip(connected: _connected, status: _status),
+                  const SizedBox(width: 10),
+                  if (!_connected)
+                    FilledButton.icon(
+                      onPressed: _busy ? null : _startScan,
+                      icon: const Icon(Icons.search),
+                      label: const Text('Scan'),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _disconnect,
+                      icon: const Icon(Icons.link_off),
+                      label: const Text('Disconnect'),
+                    ),
+                ],
+              ),
             ),
-          const SizedBox(width: 12),
-        ],
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
