@@ -6,42 +6,103 @@ import 'package:universal_ble/universal_ble.dart';
 
 void main() => runApp(const NecklaceApp());
 
-const Color kThemeGold = Color.fromARGB(255, 209, 120, 37);
-const Color kTextGold = Color.fromARGB(255, 255, 255, 255);
+const Color kGold = Color.fromARGB(255, 163, 109, 28);
+const Color kBg = Color(0xFF0F0F10);
+const Color kSurface = Color.fromARGB(255, 35, 35, 36);
+const Color kSurface2 = Color.fromARGB(255, 45, 45, 48);
+const Color kText = Colors.white;
 
 class NecklaceApp extends StatelessWidget {
   const NecklaceApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final base = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: const ColorScheme.dark(
+        primary: kGold,
+        onPrimary: Colors.black,
+
+        secondary: kGold,
+        onSecondary: Colors.black,
+
+        background: kBg,
+        onBackground: kText,
+
+        surface: kSurface,
+        onSurface: kText,
+
+        surfaceVariant: kSurface2,
+        onSurfaceVariant: Color(0xFFE6E6E6),
+
+        outline: Color(0xFF3A3A3C),
+      ),
+    );
+
     return MaterialApp(
       title: 'Necklace Control',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: kThemeGold,
-          brightness: Brightness.dark,
-        ).copyWith(
-          onSurface: kThemeGold,
-          onSurfaceVariant: kThemeGold,
-          onPrimary: Colors.black,
-          onSecondary: Colors.black,
-          onBackground: kThemeGold,
+      theme: base.copyWith(
+        scaffoldBackgroundColor: kBg,
+
+        // Keep text white
+        textTheme: base.textTheme.apply(
+          bodyColor: kText,
+          displayColor: kText,
         ),
-        scaffoldBackgroundColor: const Color(0xFF0F0F10),
-        textTheme: ThemeData.dark().textTheme.apply(
-              bodyColor: kTextGold,
-              displayColor: kTextGold,
-            ),
-        iconTheme: const IconThemeData(color: kThemeGold),
+
+        iconTheme: const IconThemeData(color: kGold),
+
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF161616),
-          foregroundColor: kTextGold,
-          iconTheme: IconThemeData(color: kThemeGold),
+          backgroundColor: kSurface,
+          foregroundColor: kText,
+          iconTheme: IconThemeData(color: kGold),
         ),
-        sliderTheme: const SliderThemeData(
+
+        // Make Cards / Containers stay dark (no seed-tinted fills)
+        // cardTheme: const CardTheme(
+        //   color: kSurface,
+        //   elevation: 0,
+        //   margin: EdgeInsets.zero,
+        // ),
+
+        // Inputs (Dropdown/TextField) background dark
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: kSurface2,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF3A3A3C)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF3A3A3C)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kGold, width: 1.2),
+          ),
+        ),
+
+        // Sliders: gold thumb + active track, dark inactive track, no gold wash
+        sliderTheme: base.sliderTheme.copyWith(
           showValueIndicator: ShowValueIndicator.always,
+          activeTrackColor: kGold,
+          inactiveTrackColor: const Color(0xFF2C2C2E),
+          thumbColor: kGold,
+          overlayColor: kGold.withOpacity(0.15),
+          valueIndicatorColor: kGold,
+          valueIndicatorTextStyle: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+
+        // Optional: make dividers/outlines subtle
+        dividerTheme: const DividerThemeData(
+          color: Color(0xFF2C2C2E),
+          thickness: 1,
         ),
       ),
       home: const HomePage(),
@@ -614,10 +675,10 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
         children: [
           _HeaderCard(deviceName: _deviceName, connected: _connected, status: _status),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
           _SettingsCard(
             enabled: _connected && !_busy,
@@ -634,7 +695,7 @@ class _HomePageState extends State<HomePage> {
             onSensitivityChanged: _debouncedWriteSensitivity,
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
           _BatteryCard(
             enabled: _connected && !_busy,
@@ -643,29 +704,29 @@ class _HomePageState extends State<HomePage> {
             onRefresh: _refreshBattery,
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.tips_and_updates_outlined, color: cs.onSurfaceVariant),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    SEND_SLIDERS_AS_U32
-                        ? 'Slider writes are 4-byte little-endian (u32).'
-                        : 'Slider writes are 1-byte values (u8). Flip SEND_SLIDERS_AS_U32 if your FW expects u32.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        //   Container(
+        //     padding: const EdgeInsets.all(12),
+        //     decoration: BoxDecoration(
+        //       color: cs.surfaceContainerHighest,
+        //       borderRadius: BorderRadius.circular(12),
+        //     ),
+        //     child: Row(
+        //       children: [
+        //         Icon(Icons.tips_and_updates_outlined, color: cs.onSurfaceVariant),
+        //         const SizedBox(width: 10),
+        //         Expanded(
+        //           child: Text(
+        //             SEND_SLIDERS_AS_U32
+        //                 ? 'Slider writes are 4-byte little-endian (u32).'
+        //                 : 'Slider writes are 1-byte values (u8). Flip SEND_SLIDERS_AS_U32 if your FW expects u32.',
+        //             style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+        //           ),
+        //         ),
+        //       ],
+        //     ),
+        //   ),
         ],
       ),
       bottomNavigationBar: _busy
@@ -801,7 +862,7 @@ class _SettingsCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Controls', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
 
             _LabeledSlider(
               title: 'Brightness',
@@ -814,7 +875,7 @@ class _SettingsCard extends StatelessWidget {
               onChanged: enabled ? onBrightnessChanged : null,
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
 
             Row(
               children: [
@@ -829,11 +890,11 @@ class _SettingsCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
 
             _LabeledSlider(
               title: 'Filter',
@@ -846,7 +907,7 @@ class _SettingsCard extends StatelessWidget {
               onChanged: enabled ? onFilterChanged : null,
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
 
             _LabeledSlider(
               title: 'Sensitivity',
