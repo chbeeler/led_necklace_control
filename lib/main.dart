@@ -675,8 +675,8 @@ class _HomePageState extends State<HomePage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
         children: [
-          _HeaderCard(deviceName: _deviceName, connected: _connected, status: _status),
-          const SizedBox(height: 10),
+          _HeaderCard(deviceName: _deviceName, connected: _connected),
+          const SizedBox(height: 4),
 
           _SettingsCard(
             enabled: _connected && !_busy,
@@ -693,7 +693,7 @@ class _HomePageState extends State<HomePage> {
             onSensitivityChanged: _debouncedWriteSensitivity,
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
 
           _BatteryCard(
             enabled: _connected && !_busy,
@@ -702,7 +702,7 @@ class _HomePageState extends State<HomePage> {
             onRefresh: _refreshBattery,
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
 
         //   Container(
         //     padding: const EdgeInsets.all(12),
