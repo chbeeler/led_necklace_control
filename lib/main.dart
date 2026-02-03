@@ -147,6 +147,7 @@ const String CH_MODE = '19B10053-E8F2-537E-4F6C-D104768A1214';
 //const String CH_VBAT_THRES = '19B10054-E8F2-537E-4F6C-D104768A1214';
 const String CH_VBAT = '19B10055-E8F2-537E-4F6C-D104768A1214';
 const String CH_FILTER = '19B10100-E8F2-537E-4F6C-D104768A1214';
+const String CH_NOISE_FLOOR = '19B10056-E8F2-537E-4F6C-D104768A1214';
 //const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
@@ -175,6 +176,7 @@ class _HomePageState extends State<HomePage> {
   LedMode _mode = LedMode.eq;
   double _filter = 0; // 0..255
   double _sensitivity = 1000; // 0..1000
+  double _noise_floor = 10;
 
   // vBat threshold slider: 3.0..4.3 V (sent as V*10 as u16/u32)
   double _vbatThresV = 3.8;
@@ -489,6 +491,12 @@ class _HomePageState extends State<HomePage> {
       final v = _readSliderValue(s);
       setState(() => _sensitivity = v.toDouble().clamp(0, 1000));
     } catch (_) {}
+
+    try {
+      final s = await UniversalBle.read(deviceId, SVC_LED, CH_NOISE_FLOOR);
+      final v = _readSliderValue(s);
+      setState(() => _noise_floor = v.toDouble().clamp(0, 1000));
+    } catch (_) {}
   }
 
   Future<void> _refreshBattery() async {
@@ -559,6 +567,17 @@ class _HomePageState extends State<HomePage> {
       if (id == null || !_connected) return;
       final ui = _sensitivity.round().clamp(0, 1000);
       await _writeSlider(id, CH_SENSITIVITY, ui, uiFallbackByte: ui);
+    });
+  }
+
+  void _debouncedWriteNoiseFloor(double v) {
+    setState(() => _noise_floor = v);
+    _tSens?.cancel();
+    _tSens = Timer(const Duration(milliseconds: 120), () async {
+      final id = _deviceId;
+      if (id == null || !_connected) return;
+      final ui = _noise_floor.round().clamp(0, 1000);
+      await _writeSlider(id, CH_NOISE_FLOOR, ui, uiFallbackByte: ui);
     });
   }
 
@@ -691,6 +710,9 @@ class _HomePageState extends State<HomePage> {
             sensitivity: _sensitivity,
             sensitivityLabel: '${_sensitivity.round()}',
             onSensitivityChanged: _debouncedWriteSensitivity,
+            noise_floor: _noise_floor,
+            noiseFloorLabel: '${_noise_floor.round()}',
+            onNoiseFloorChanged: _debouncedWriteNoiseFloor,
           ),
 
           const SizedBox(height: 4),
@@ -884,6 +906,9 @@ class _SettingsCard extends StatelessWidget {
     required this.sensitivity,
     required this.sensitivityLabel,
     required this.onSensitivityChanged,
+    required this.noise_floor,
+    required this.noiseFloorLabel,
+    required this.onNoiseFloorChanged,
   });
 
   final bool enabled;
@@ -902,6 +927,10 @@ class _SettingsCard extends StatelessWidget {
   final double sensitivity;
   final String sensitivityLabel;
   final ValueChanged<double> onSensitivityChanged;
+
+  final double noise_floor;
+  final String noiseFloorLabel;
+  final ValueChanged<double> onNoiseFloorChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -960,6 +989,19 @@ class _SettingsCard extends StatelessWidget {
               max: 1000,
               divisions: 500,
               onChanged: enabled ? onSensitivityChanged : null,
+            ),
+
+            const SizedBox(height: 4),
+
+            _LabeledSlider(
+              title: 'Noise Floor',
+              subtitle: '0..1000 • $noiseFloorLabel',
+              enabled: enabled,
+              value: noise_floor,
+              min: 0,
+              max: 1000,
+              divisions: 500,
+              onChanged: enabled ? onNoiseFloorChanged : null,
             ),
           ],
         ),
