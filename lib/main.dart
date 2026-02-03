@@ -774,14 +774,6 @@ class _SettingsCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('FW: ${mode.fwValue}', style: Theme.of(context).textTheme.labelLarge),
-                ),
               ],
             ),
 
