@@ -60,10 +60,10 @@ const String SVC_LED = '19B10050-E8F2-537E-4F6C-D104768A1214';
 const String CH_BRIGHTNESS = '19B10051-E8F2-537E-4F6C-D104768A1214';
 const String CH_SENSITIVITY = '19B10052-E8F2-537E-4F6C-D104768A1214';
 const String CH_MODE = '19B10053-E8F2-537E-4F6C-D104768A1214';
-const String CH_VBAT_THRES = '19B10054-E8F2-537E-4F6C-D104768A1214';
+//const String CH_VBAT_THRES = '19B10054-E8F2-537E-4F6C-D104768A1214';
 const String CH_VBAT = '19B10055-E8F2-537E-4F6C-D104768A1214';
 const String CH_FILTER = '19B10100-E8F2-537E-4F6C-D104768A1214';
-const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
+//const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
 // If your FW expects just 1 byte, keep false (recommended for MVP).
@@ -331,12 +331,6 @@ class _HomePageState extends State<HomePage> {
       final v = _readSliderValue(s);
       setState(() => _sensitivity = v.toDouble().clamp(0, 255));
     } catch (_) {}
-
-    try {
-      final t = await UniversalBle.read(deviceId, SVC_LED, CH_VBAT_THRES);
-      final raw = _readSliderValue(t); // expects V*10 if sent as integer
-      setState(() => _vbatThresV = (raw / 10.0).clamp(3.0, 4.3));
-    } catch (_) {}
   }
 
   Future<void> _refreshBattery() async {
@@ -407,18 +401,6 @@ class _HomePageState extends State<HomePage> {
       if (id == null || !_connected) return;
       final ui = _sensitivity.round().clamp(0, 255);
       await _writeSlider(id, CH_SENSITIVITY, ui, uiFallbackByte: ui);
-    });
-  }
-
-  void _debouncedWriteVbatThres(double v) {
-    setState(() => _vbatThresV = v);
-    _tVthres?.cancel();
-    _tVthres = Timer(const Duration(milliseconds: 200), () async {
-      final id = _deviceId;
-      if (id == null || !_connected) return;
-      final raw = (_vbatThresV * 10.0).round().clamp(0, 65535); // V*10
-      // Usually best as u16, but if your FW expects u32, flip SEND_SLIDERS_AS_U32=true.
-      await _writeU16(id, CH_VBAT_THRES, raw);
     });
   }
 
@@ -594,8 +576,6 @@ class _HomePageState extends State<HomePage> {
             sensitivity: _sensitivity,
             sensitivityLabel: '${_sensitivity.round()}',
             onSensitivityChanged: _debouncedWriteSensitivity,
-            vbatThresV: _vbatThresV,
-            onVbatThresChanged: _debouncedWriteVbatThres,
           ),
 
           const SizedBox(height: 14),
@@ -734,8 +714,6 @@ class _SettingsCard extends StatelessWidget {
     required this.sensitivity,
     required this.sensitivityLabel,
     required this.onSensitivityChanged,
-    required this.vbatThresV,
-    required this.onVbatThresChanged,
   });
 
   final bool enabled;
@@ -754,9 +732,6 @@ class _SettingsCard extends StatelessWidget {
   final double sensitivity;
   final String sensitivityLabel;
   final ValueChanged<double> onSensitivityChanged;
-
-  final double vbatThresV;
-  final ValueChanged<double> onVbatThresChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -834,19 +809,6 @@ class _SettingsCard extends StatelessWidget {
               max: 255,
               divisions: 255,
               onChanged: enabled ? onSensitivityChanged : null,
-            ),
-
-            const SizedBox(height: 8),
-
-            _LabeledSlider(
-              title: 'Low-battery threshold',
-              subtitle: '${vbatThresV.toStringAsFixed(1)} V (sent as V*10)',
-              enabled: enabled,
-              value: vbatThresV,
-              min: 3.0,
-              max: 4.3,
-              divisions: 13,
-              onChanged: enabled ? onVbatThresChanged : null,
             ),
           ],
         ),
