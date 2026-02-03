@@ -803,6 +803,67 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
+class _ModeButtons extends StatelessWidget {
+  const _ModeButtons({required this.enabled, required this.mode, required this.onModeChanged});
+
+  final bool enabled;
+  final LedMode mode;
+  final ValueChanged<LedMode> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    Widget buildButton(String label, LedMode value) {
+      final active = mode == value;
+      final textColor = kText;  // active ? kText : kTextDisabled;
+      final fontWeight = active ? FontWeight.w800 : FontWeight.w400;
+
+      return Expanded(
+        child: TextButton(
+          onPressed: enabled ? () => onModeChanged(value) : null,
+          style: ButtonStyle(
+            backgroundColor: MaterialStateProperty.all(cs.surfaceContainerHighest),
+            foregroundColor: MaterialStateProperty.all(textColor),
+            padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
+            shape: MaterialStateProperty.all(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: active ? cs.primary : cs.outlineVariant),
+              ),
+            ),
+          ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: textColor,
+                  fontWeight: fontWeight,
+                  letterSpacing: 0.6,
+                ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Mode', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            buildButton('OFF', LedMode.off),
+            const SizedBox(width: 8),
+            buildButton('ON', LedMode.solid),
+            const SizedBox(width: 8),
+            buildButton('EQ', LedMode.eq),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({
     required this.enabled,
@@ -863,21 +924,10 @@ class _SettingsCard extends StatelessWidget {
 
             const SizedBox(height: 4),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _FieldShell(
-                    title: 'Mode',
-                    child: DropdownButtonFormField<LedMode>(
-                      value: mode,
-                      onChanged: enabled ? (v) => onModeChanged(v!) : null,
-                      items: LedMode.values.map((m) => DropdownMenuItem(value: m, child: Text(m.label))).toList(),
-                      decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
+            _ModeButtons(
+              enabled: enabled,
+              mode: mode,
+              onModeChanged: onModeChanged,
             ),
 
             const SizedBox(height: 4),
