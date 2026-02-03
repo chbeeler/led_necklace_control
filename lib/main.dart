@@ -6,6 +6,9 @@ import 'package:universal_ble/universal_ble.dart';
 
 void main() => runApp(const NecklaceApp());
 
+const Color kThemeGold = Color.fromARGB(255, 209, 120, 37);
+const Color kTextGold = Color.fromARGB(255, 255, 255, 255);
+
 class NecklaceApp extends StatelessWidget {
   const NecklaceApp({super.key});
 
@@ -16,11 +19,26 @@ class NecklaceApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 170, 131, 40)),
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.grey.shade900,
-          foregroundColor: Colors.grey.shade50,
-          iconTheme: IconThemeData(color: Colors.grey.shade50),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: kThemeGold,
+          brightness: Brightness.dark,
+        ).copyWith(
+          onSurface: kThemeGold,
+          onSurfaceVariant: kThemeGold,
+          onPrimary: Colors.black,
+          onSecondary: Colors.black,
+          onBackground: kThemeGold,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF0F0F10),
+        textTheme: ThemeData.dark().textTheme.apply(
+              bodyColor: kTextGold,
+              displayColor: kTextGold,
+            ),
+        iconTheme: const IconThemeData(color: kThemeGold),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF161616),
+          foregroundColor: kTextGold,
+          iconTheme: IconThemeData(color: kThemeGold),
         ),
         sliderTheme: const SliderThemeData(
           showValueIndicator: ShowValueIndicator.always,
@@ -566,6 +584,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Necklace Control'),
+        centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
