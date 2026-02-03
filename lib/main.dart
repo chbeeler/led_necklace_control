@@ -115,6 +115,7 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription<BleDevice>? _scanSub;
   StreamSubscription<bool>? _connSub;
   StreamSubscription<Uint8List>? _vbatSub;
+  void Function(void Function())? _deviceDialogSetState;
 
   @override
   void initState() {
@@ -158,6 +159,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _scan[d.deviceId] = _ScanItem(name: name, rssi: rssi);
       });
+      _deviceDialogSetState?.call(() {});
     };
 
     // Connection changes (optional; we also use connectionStream for the selected device)
@@ -196,6 +198,7 @@ class _HomePageState extends State<HomePage> {
       _status = 'Scanning…';
       _scan.clear();
     });
+    _showDevicePicker();
 
     try {
       await UniversalBle.startScan(
@@ -218,6 +221,7 @@ class _HomePageState extends State<HomePage> {
         _busy = false;
         _status = 'Select a device';
       });
+      _deviceDialogSetState?.call(() {});
     }
   }
 
@@ -308,6 +312,78 @@ class _HomePageState extends State<HomePage> {
         _status = 'Not connected';
       });
     }
+  }
+
+  void _showDevicePicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            _deviceDialogSetState = setModalState;
+            final cs = Theme.of(context).colorScheme;
+            final scanList = _scan.entries.toList()
+              ..sort((a, b) {
+                final an = a.value.name.toLowerCase();
+                final bn = b.value.name.toLowerCase();
+                final aHit = an.contains('led necklace') ? 0 : 1;
+                final bHit = bn.contains('led necklace') ? 0 : 1;
+                if (aHit != bHit) return aHit - bHit;
+                return b.value.rssi.compareTo(a.value.rssi);
+              });
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Select Device', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 6),
+                  Text(
+                    _busy ? 'Scanning…' : 'Tap your necklace to connect.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_busy && _scan.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        children: [
+                          SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                          SizedBox(width: 12),
+                          Text('Scanning…'),
+                        ],
+                      ),
+                    ),
+                  if (scanList.isEmpty && !_busy)
+                    Text('No devices found. Press Scan again.', style: TextStyle(color: cs.onSurfaceVariant)),
+                  ...scanList.take(10).map((e) {
+                    final id = e.key;
+                    final it = e.value;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(it.name.isEmpty ? '(unknown)' : it.name),
+                      subtitle: Text(id),
+                      trailing: Text('${it.rssi} dBm'),
+                      onTap: _busy
+                          ? null
+                          : () async {
+                              Navigator.of(context).pop();
+                              await _connectTo(id);
+                            },
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() => _deviceDialogSetState = null);
   }
 
   Future<void> _readInitials(String deviceId) async {
@@ -487,16 +563,6 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final scanList = _scan.entries.toList()
-      ..sort((a, b) {
-        final an = a.value.name.toLowerCase();
-        final bn = b.value.name.toLowerCase();
-        final aHit = an.contains('led necklace') ? 0 : 1;
-        final bHit = bn.contains('led necklace') ? 0 : 1;
-        if (aHit != bHit) return aHit - bHit;
-        return b.value.rssi.compareTo(a.value.rssi);
-      });
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Necklace Control'),
@@ -533,48 +599,6 @@ class _HomePageState extends State<HomePage> {
         children: [
           _HeaderCard(deviceName: _deviceName, connected: _connected, status: _status),
           const SizedBox(height: 14),
-
-          if (!_connected) ...[
-            Card(
-              elevation: 0,
-              color: cs.surfaceContainerHighest,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Devices', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    if (_busy && _scan.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                            SizedBox(width: 12),
-                            Text('Scanning…'),
-                          ],
-                        ),
-                      ),
-                    if (scanList.isEmpty && !_busy)
-                      Text('Press Scan, then tap your necklace.', style: TextStyle(color: cs.onSurfaceVariant)),
-                    ...scanList.take(8).map((e) {
-                      final id = e.key;
-                      final it = e.value;
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(it.name.isEmpty ? '(unknown)' : it.name),
-                        subtitle: Text(id),
-                        trailing: Text('${it.rssi} dBm'),
-                        onTap: _busy ? null : () => _connectTo(id),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
 
           _SettingsCard(
             enabled: _connected && !_busy,
