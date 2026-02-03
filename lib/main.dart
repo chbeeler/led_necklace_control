@@ -304,8 +304,8 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _connectTo(String deviceId) async {
-    if (_busy) return;
+  Future<void> _connectTo(String deviceId, {bool force = false}) async {
+    if (_busy && !force) return;
     setState(() {
       _busy = true;
       _status = 'Connecting…';
@@ -447,12 +447,10 @@ class _HomePageState extends State<HomePage> {
                       title: Text(it.name.isEmpty ? '(unknown)' : it.name),
                       subtitle: Text(id),
                       trailing: Text('${it.rssi} dBm'),
-                      onTap: _busy
-                          ? null
-                          : () async {
-                              Navigator.of(context).pop();
-                              await _connectTo(id);
-                            },
+                      onTap: () async {
+                        Navigator.of(context).pop();
+                        await _connectTo(id, force: true);
+                      },
                     );
                   }),
                   const SizedBox(height: 8),
