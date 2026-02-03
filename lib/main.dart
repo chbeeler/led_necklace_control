@@ -816,20 +816,26 @@ class _ModeButtons extends StatelessWidget {
 
     Widget buildButton(String label, LedMode value) {
       final active = mode == value;
-      final textColor = kText;  // active ? kText : kTextDisabled;
-      final fontWeight = active ? FontWeight.w800 : FontWeight.w400;
+      final isActive = enabled && active;
+      final textColor = isActive ? kText : cs.onSurfaceVariant;
+      final fontWeight = isActive ? FontWeight.w800 : FontWeight.w400;
 
       return Expanded(
         child: TextButton(
           onPressed: enabled ? () => onModeChanged(value) : null,
           style: ButtonStyle(
-            backgroundColor: MaterialStateProperty.all(cs.surfaceContainerHighest),
-            foregroundColor: MaterialStateProperty.all(textColor),
-            padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
-            shape: MaterialStateProperty.all(
+            backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
+            foregroundColor: WidgetStateProperty.all(textColor),
+            padding: WidgetStateProperty.all(
+              EdgeInsets.symmetric(vertical: isActive ? 12 : 11),
+            ),
+            shape: WidgetStateProperty.all(
               RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
-                side: BorderSide(color: active ? cs.primary : cs.outlineVariant),
+                side: BorderSide(
+                  color: isActive ? kGold : cs.outlineVariant,
+                  width: isActive ? 2 : 1,
+                ),
               ),
             ),
           ),
