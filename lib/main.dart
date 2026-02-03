@@ -16,7 +16,12 @@ class NecklaceApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 170, 131, 40)),
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.grey.shade900,
+          foregroundColor: Colors.grey.shade50,
+          iconTheme: IconThemeData(color: Colors.grey.shade50),
+        ),
         sliderTheme: const SliderThemeData(
           showValueIndicator: ShowValueIndicator.always,
         ),
