@@ -767,10 +767,9 @@ class _ConnectionChip extends StatelessWidget {
 }
 
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.deviceName, required this.connected, required this.status});
+  const _HeaderCard({required this.deviceName, required this.connected});
   final String deviceName;
   final bool connected;
-  final String status;
 
   @override
   Widget build(BuildContext context) {
@@ -790,23 +789,12 @@ class _HeaderCard extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(deviceName, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 2),
-                  Text(
-                    connected ? 'Ready to control' : 'Scan and connect',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              status,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: connected ? cs.primary : cs.onSurfaceVariant,
-                  ),
+              child: connected
+                  ? Text(deviceName, style: Theme.of(context).textTheme.titleMedium)
+                  : Text(
+                      'Not connected',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    ),
             ),
           ],
         ),
