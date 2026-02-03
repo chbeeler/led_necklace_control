@@ -852,34 +852,30 @@ class _BatteryCard extends StatelessWidget {
                       color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
+                      child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.battery_full, color: cs.onSurfaceVariant),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(v == null ? 'Unknown' : '${v.toStringAsFixed(3)} V',
-                                  style: Theme.of(context).textTheme.titleMedium),
-                              const SizedBox(height: 2),
-                              Text('Last update: $timeStr',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
-                            ],
-                          ),
-                        ),
-                        if (pct != null)
-                          SizedBox(
-                            width: 90,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(999),
-                              child: LinearProgressIndicator(
-                                value: pct,
-                                minHeight: 10,
-                                backgroundColor: cs.outlineVariant,
+                        Row(
+                          children: [
+                            Icon(Icons.battery_full, color: cs.onSurfaceVariant),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(999),
+                                child: LinearProgressIndicator(
+                                  value: pct ?? 0.0,
+                                  minHeight: 10,
+                                  backgroundColor: cs.outlineVariant,
+                                ),
                               ),
                             ),
-                          ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          v == null ? 'Unknown' : '${v.toStringAsFixed(3)} V',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                       ],
                     ),
                   ),
