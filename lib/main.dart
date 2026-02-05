@@ -148,6 +148,7 @@ const String CH_MODE = '19B10053-E8F2-537E-4F6C-D104768A1214';
 const String CH_VBAT = '19B10055-E8F2-537E-4F6C-D104768A1214';
 const String CH_FILTER = '19B10100-E8F2-537E-4F6C-D104768A1214';
 const String CH_NOISE_FLOOR = '19B10056-E8F2-537E-4F6C-D104768A1214';
+const String CH_VOL_MIN_MAX = '19B10120-E8F2-537E-4F6C-D104768A1214';
 //const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
@@ -177,6 +178,8 @@ class _HomePageState extends State<HomePage> {
   double _filter = 0; // 0..255
   double _sensitivity = 1000; // 0..1000
   double _noise_floor = 10;
+  int? _recentMinVolume;
+  int? _recentMaxVolume;
 
   // vBat threshold slider: 3.0..4.3 V (sent as V*10 as u16/u32)
   double _vbatThresV = 3.8;
@@ -517,6 +520,36 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _autoSetNoiseFloorFromBle() async {
+    final id = _deviceId;
+    if (id == null || !_connected || _busy) return;
+    setState(() {
+      _busy = true;
+      _status = 'Reading volume range…';
+    });
+
+    try {
+      final data = await UniversalBle.read(id, SVC_LED, CH_VOL_MIN_MAX);
+      final minV = _u16leAt(data, 0);
+      final maxV = _u16leAt(data, 2);
+
+      final autoNoise = (minV * 0.9).round().clamp(0, 1000);
+
+      setState(() {
+        _recentMinVolume = minV;
+        _recentMaxVolume = maxV;
+        _noise_floor = autoNoise.toDouble();
+        _status = 'Noise floor set from min volume';
+      });
+
+      await _writeSlider(id, CH_NOISE_FLOOR, autoNoise, uiFallbackByte: autoNoise);
+    } catch (e) {
+      _setStatus('Auto noise floor failed: $e');
+    } finally {
+      setState(() => _busy = false);
+    }
+  }
+
   // ---------- Write helpers (debounced) ----------
   void _debouncedWriteBrightness(double v) {
     setState(() => _brightness = v);
@@ -643,6 +676,12 @@ class _HomePageState extends State<HomePage> {
     return bd.getUint16(0, Endian.little);
   }
 
+  static int _u16leAt(Uint8List b, int offset) {
+    if (b.length < offset + 2) return _u16le(b);
+    final bd = ByteData.sublistView(b);
+    return bd.getUint16(offset, Endian.little);
+  }
+
   static int _u32le(Uint8List b) {
     if (b.length < 4) return _u16le(b);
     final bd = ByteData.sublistView(b);
@@ -713,6 +752,9 @@ class _HomePageState extends State<HomePage> {
             noise_floor: _noise_floor,
             noiseFloorLabel: '${_noise_floor.round()}',
             onNoiseFloorChanged: _debouncedWriteNoiseFloor,
+            onAutoNoiseFloor: _autoSetNoiseFloorFromBle,
+            recentMinVolume: _recentMinVolume,
+            recentMaxVolume: _recentMaxVolume,
           ),
 
           const SizedBox(height: 4),
@@ -909,6 +951,9 @@ class _SettingsCard extends StatelessWidget {
     required this.noise_floor,
     required this.noiseFloorLabel,
     required this.onNoiseFloorChanged,
+    required this.onAutoNoiseFloor,
+    required this.recentMinVolume,
+    required this.recentMaxVolume,
   });
 
   final bool enabled;
@@ -931,6 +976,9 @@ class _SettingsCard extends StatelessWidget {
   final double noise_floor;
   final String noiseFloorLabel;
   final ValueChanged<double> onNoiseFloorChanged;
+  final VoidCallback onAutoNoiseFloor;
+  final int? recentMinVolume;
+  final int? recentMaxVolume;
 
   @override
   Widget build(BuildContext context) {
@@ -1002,6 +1050,31 @@ class _SettingsCard extends StatelessWidget {
               max: 1000,
               divisions: 500,
               onChanged: enabled ? onNoiseFloorChanged : null,
+            ),
+
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    recentMinVolume == null && recentMaxVolume == null
+                        ? 'Min/Max: —'
+                        : 'Min/Max: ${recentMinVolume ?? 0} / ${recentMaxVolume ?? 0}',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      onPressed: enabled ? onAutoNoiseFloor : null,
+                      child: const Text('AUTO'),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
