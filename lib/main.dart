@@ -412,10 +412,7 @@ class _HomePageState extends State<HomePage> {
               ..sort((a, b) {
                 final an = a.value.name.toLowerCase();
                 final bn = b.value.name.toLowerCase();
-                final aHit = an.contains('led necklace') ? 0 : 1;
-                final bHit = bn.contains('led necklace') ? 0 : 1;
-                if (aHit != bHit) return aHit - bHit;
-                return b.value.rssi.compareTo(a.value.rssi);
+                return an.compareTo(bn);
               });
 
             return Padding(
