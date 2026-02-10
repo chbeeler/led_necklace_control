@@ -161,7 +161,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ---- Connection / device selection ----
   bool _connected = false;
   bool _busy = false;
@@ -200,15 +200,28 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription<bool>? _connSub;
   StreamSubscription<Uint8List>? _vbatSub;
   void Function(void Function())? _deviceDialogSetState;
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _batteryCardKey = GlobalKey();
+  Timer? _batteryTimer;
+  Duration? _batteryPollInterval;
+  bool _batteryVisible = false;
+  bool _appActive = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scrollController.addListener(_updateBatteryVisibility);
     _initBle();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateBatteryVisibility());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _batteryTimer?.cancel();
+    _scrollController.removeListener(_updateBatteryVisibility);
+    _scrollController.dispose();
     _tBright?.cancel();
     _tMode?.cancel();
     _tFilter?.cancel();
@@ -225,6 +238,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _setStatus(String s) => setState(() => _status = s);
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final active = state == AppLifecycleState.resumed;
+    _appActive = active;
+    if (!active) {
+      _stopBatteryPolling();
+    } else {
+      _updateBatteryVisibility();
+    }
+  }
 
   Future<void> _initBle() async {
     try {
@@ -254,6 +278,11 @@ class _HomePageState extends State<HomePage> {
         _busy = false;
         _status = connected ? 'Connected' : (error != null ? 'Disconnected: $error' : 'Disconnected');
       });
+      if (!connected) {
+        _stopBatteryPolling();
+      } else {
+        _updateBatteryVisibility();
+      }
     };
 
     UniversalBle.onValueChange = (String deviceId, String characteristicId, Uint8List value, int? timestamp) {
@@ -363,6 +392,7 @@ class _HomePageState extends State<HomePage> {
         _deviceName = _scan[deviceId]?.name.isNotEmpty == true ? _scan[deviceId]!.name : 'LED Necklace';
         _status = 'Connected';
       });
+      _updateBatteryVisibility();
     } catch (e) {
       setState(() {
         _busy = false;
@@ -395,6 +425,7 @@ class _HomePageState extends State<HomePage> {
         _connected = false;
         _status = 'Not connected';
       });
+      _stopBatteryPolling();
     }
   }
 
@@ -499,10 +530,13 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  Future<void> _refreshBattery() async {
+  Future<void> _refreshBattery({bool showBusy = true}) async {
     final id = _deviceId;
     if (id == null || !_connected) return;
-    setState(() => _busy = true);
+    if (_busy) return;
+    if (showBusy) {
+      setState(() => _busy = true);
+    }
     try {
       final v = await UniversalBle.read(id, SVC_LED, CH_VBAT);
       final mv = _u16le(v);
@@ -513,7 +547,9 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       _setStatus('Battery read failed: $e');
     } finally {
-      setState(() => _busy = false);
+      if (showBusy) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -690,6 +726,62 @@ class _HomePageState extends State<HomePage> {
     return _u8(b);
   }
 
+  bool _isBatteryCardVisible() {
+    final cardContext = _batteryCardKey.currentContext;
+    if (cardContext == null) return false;
+    final cardBox = cardContext.findRenderObject();
+    final rootBox = context.findRenderObject();
+    if (cardBox is! RenderBox || rootBox is! RenderBox) return false;
+    if (!cardBox.hasSize || !rootBox.hasSize) return false;
+
+    final cardTopLeft = cardBox.localToGlobal(Offset.zero);
+    final cardBottomRight = cardBox.localToGlobal(cardBox.size.bottomRight(Offset.zero));
+    final rootTopLeft = rootBox.localToGlobal(Offset.zero);
+    final rootBottomRight = rootBox.localToGlobal(rootBox.size.bottomRight(Offset.zero));
+
+    return cardBottomRight.dy > rootTopLeft.dy && cardTopLeft.dy < rootBottomRight.dy;
+  }
+
+  void _startBatteryPolling(Duration interval, {bool immediate = false}) {
+    if (_batteryPollInterval == interval && _batteryTimer != null) return;
+    _batteryTimer?.cancel();
+    _batteryPollInterval = interval;
+    if (immediate) {
+      _refreshBattery(showBusy: false);
+    }
+    _batteryTimer = Timer.periodic(interval, (_) => _refreshBattery(showBusy: false));
+  }
+
+  void _stopBatteryPolling() {
+    _batteryTimer?.cancel();
+    _batteryTimer = null;
+    _batteryPollInterval = null;
+  }
+
+  void _updateBatteryVisibility() {
+    if (!mounted || !_appActive) return;
+    if (!_connected || _deviceId == null) {
+      _stopBatteryPolling();
+      return;
+    }
+
+    final visible = _isBatteryCardVisible();
+    if (visible != _batteryVisible) {
+      _batteryVisible = visible;
+      if (visible) {
+        _startBatteryPolling(const Duration(seconds: 5), immediate: true);
+      } else {
+        _stopBatteryPolling();
+      }
+    } else {
+      if (visible) {
+        _startBatteryPolling(const Duration(seconds: 5));
+      } else {
+        _stopBatteryPolling();
+      }
+    }
+  }
+
   // ===================== UI =====================
   @override
   Widget build(BuildContext context) {
@@ -728,6 +820,7 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
         children: [
           _HeaderCard(deviceName: _deviceName, connected: _connected),
@@ -757,6 +850,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 4),
 
           _BatteryCard(
+            key: _batteryCardKey,
             enabled: _connected && !_busy,
             vbat: _vbatV,
             time: _vbatTime,
@@ -1083,7 +1177,13 @@ class _SettingsCard extends StatelessWidget {
 }
 
 class _BatteryCard extends StatelessWidget {
-  const _BatteryCard({required this.enabled, required this.vbat, required this.time, required this.onRefresh});
+  const _BatteryCard({
+    super.key,
+    required this.enabled,
+    required this.vbat,
+    required this.time,
+    required this.onRefresh,
+  });
   final bool enabled;
   final double? vbat;
   final DateTime? time;
