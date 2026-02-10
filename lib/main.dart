@@ -110,28 +110,28 @@ class NecklaceApp extends StatelessWidget {
   }
 }
 
-enum LedMode { off, eq, solid, pulse }
+enum LedMode { off, eq, solid, test }
 
 extension LedModeUi on LedMode {
   String get label => switch (this) {
         LedMode.off => 'Off',
         LedMode.eq => 'EQ',
         LedMode.solid => 'Solid',
-        LedMode.pulse => 'Pulse',
+        LedMode.test => 'TST',
       };
 
   int get fwValue => switch (this) {
         LedMode.off => 0,
         LedMode.eq => 1,
         LedMode.solid => 2,
-        LedMode.pulse => 3,
+        LedMode.test => 3,
       };
 
   static LedMode fromFw(int v) => switch (v) {
         0 => LedMode.off,
         1 => LedMode.eq,
         2 => LedMode.solid,
-        3 => LedMode.pulse,
+        3 => LedMode.test,
         _ => LedMode.eq,
       };
 }
@@ -924,6 +924,8 @@ class _ModeButtons extends StatelessWidget {
             buildButton('ON', LedMode.solid),
             const SizedBox(width: 8),
             buildButton('EQ', LedMode.eq),
+            const SizedBox(width: 8),
+            buildButton('TST', LedMode.test),
           ],
         ),
       ],
