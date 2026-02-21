@@ -110,28 +110,28 @@ class NecklaceApp extends StatelessWidget {
   }
 }
 
-enum LedMode { off, eq, solid, test }
+enum LedMode { off, eq, solid, aeq }
 
 extension LedModeUi on LedMode {
   String get label => switch (this) {
         LedMode.off => 'Off',
         LedMode.eq => 'EQ',
         LedMode.solid => 'Solid',
-        LedMode.test => 'TST',
+        LedMode.aeq => 'AEQ',
       };
 
   int get fwValue => switch (this) {
         LedMode.off => 0,
         LedMode.eq => 1,
         LedMode.solid => 2,
-        LedMode.test => 3,
+        LedMode.aeq => 3,
       };
 
   static LedMode fromFw(int v) => switch (v) {
         0 => LedMode.off,
         1 => LedMode.eq,
         2 => LedMode.solid,
-        3 => LedMode.test,
+        3 => LedMode.aeq,
         _ => LedMode.eq,
       };
 }
@@ -151,6 +151,7 @@ const String CH_NOISE_FLOOR = '19B10056-E8F2-537E-4F6C-D104768A1214';
 const String CH_VOL_MIN_MAX = '19B10120-E8F2-537E-4F6C-D104768A1214';
 //const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
 const int FW_UPDATE_MODE_VALUE = 4;
+const int SHUTDOWN_MODE_VALUE = 9;
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
 // If your FW expects just 1 byte, keep false (recommended for MVP).
@@ -630,6 +631,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  void _fineAdjustBrightness(int delta) {
+    final next = (_brightness + delta).clamp(0.0, 500.0).toDouble();
+    if (next == _brightness) return;
+    _debouncedWriteBrightness(next);
+  }
+
   void _debouncedWriteMode(LedMode m) {
     setState(() => _mode = m);
     _tMode?.cancel();
@@ -670,7 +677,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final id = _deviceId;
     if (id == null || !_connected) return;
     setState(() => _status = 'Sending shutdown command...');
-    await _writeU8(id, CH_MODE, LedMode.test.fwValue);
+    await _writeU8(id, CH_MODE, SHUTDOWN_MODE_VALUE);
     setState(() => _status = 'Shutdown command sent');
   }
 
@@ -940,6 +947,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             brightness: _brightness,
             brightnessLabel: '0..500',
             onBrightnessChanged: _debouncedWriteBrightness,
+            onBrightnessFineDown: () => _fineAdjustBrightness(-1),
+            onBrightnessFineUp: () => _fineAdjustBrightness(1),
             mode: _mode,
             onModeChanged: _debouncedWriteMode,
             filter: _filter,
@@ -1141,6 +1150,8 @@ class _ModeButtons extends StatelessWidget {
             buildButton('ON', LedMode.solid),
             const SizedBox(width: 8),
             buildButton('EQ', LedMode.eq),
+            const SizedBox(width: 8),
+            buildButton('AEQ', LedMode.aeq),
           ],
         ),
       ],
@@ -1154,6 +1165,8 @@ class _SettingsCard extends StatelessWidget {
     required this.brightness,
     required this.brightnessLabel,
     required this.onBrightnessChanged,
+    required this.onBrightnessFineDown,
+    required this.onBrightnessFineUp,
     required this.mode,
     required this.onModeChanged,
     required this.filter,
@@ -1175,6 +1188,8 @@ class _SettingsCard extends StatelessWidget {
   final double brightness;
   final String brightnessLabel;
   final ValueChanged<double> onBrightnessChanged;
+  final VoidCallback onBrightnessFineDown;
+  final VoidCallback onBrightnessFineUp;
 
   final LedMode mode;
   final ValueChanged<LedMode> onModeChanged;
@@ -1219,7 +1234,58 @@ class _SettingsCard extends StatelessWidget {
               onChanged: enabled ? onBrightnessChanged : null,
             ),
 
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: enabled ? onBrightnessFineDown : null,
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
+                      foregroundColor: WidgetStateProperty.all(cs.onSurfaceVariant),
+                      padding: WidgetStateProperty.all(
+                        const EdgeInsets.symmetric(vertical: 11),
+                      ),
+                      shape: WidgetStateProperty.all(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(
+                            color: cs.outlineVariant,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                    child: const Text('Fine -'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextButton(
+                    onPressed: enabled ? onBrightnessFineUp : null,
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
+                      foregroundColor: WidgetStateProperty.all(cs.onSurfaceVariant),
+                      padding: WidgetStateProperty.all(
+                        const EdgeInsets.symmetric(vertical: 11),
+                      ),
+                      shape: WidgetStateProperty.all(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(
+                            color: cs.outlineVariant,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                    child: const Text('Fine +'),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
 
             _ModeButtons(
               enabled: enabled,
