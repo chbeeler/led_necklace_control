@@ -150,6 +150,7 @@ const String CH_FILTER = '19B10100-E8F2-537E-4F6C-D104768A1214';
 const String CH_NOISE_FLOOR = '19B10056-E8F2-537E-4F6C-D104768A1214';
 const String CH_VOL_MIN_MAX = '19B10120-E8F2-537E-4F6C-D104768A1214';
 //const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
+const int FW_UPDATE_MODE_VALUE = 4;
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
 // If your FW expects just 1 byte, keep false (recommended for MVP).
@@ -206,6 +207,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Duration? _batteryPollInterval;
   bool _batteryVisible = false;
   bool _appActive = true;
+  int _batteryTitleTapCount = 0;
+  DateTime? _lastBatteryTitleTap;
 
   @override
   void initState() {
@@ -614,6 +617,89 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _confirmAndShutdown() async {
+    if (!_connected || _busy) return;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Shut down necklace?'),
+          content: const Text(
+            'After proceeding, the necklace can only be turned back on by providing USB power.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Proceed'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (proceed != true) return;
+
+    final id = _deviceId;
+    if (id == null || !_connected) return;
+    setState(() => _status = 'Sending shutdown command...');
+    await _writeU8(id, CH_MODE, LedMode.test.fwValue);
+    setState(() => _status = 'Shutdown command sent');
+  }
+
+  void _handleBatteryTitleTap() {
+    final now = DateTime.now();
+    if (_lastBatteryTitleTap == null || now.difference(_lastBatteryTitleTap!) > const Duration(seconds: 2)) {
+      _batteryTitleTapCount = 1;
+    } else {
+      _batteryTitleTapCount += 1;
+    }
+    _lastBatteryTitleTap = now;
+
+    if (_batteryTitleTapCount >= 3) {
+      _batteryTitleTapCount = 0;
+      _confirmAndEnterFwUpdateMode();
+    }
+  }
+
+  Future<void> _confirmAndEnterFwUpdateMode() async {
+    if (!_connected || _busy) return;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Enter Firmware Update Mode?'),
+          content: const Text(
+            'Confirm your computer is ready and the .uf2 file is prepared. After entering Firmware Update Mode, it can only be left by completing the update.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Enter'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (proceed != true) return;
+
+    final id = _deviceId;
+    if (id == null || !_connected) return;
+    setState(() => _status = 'Entering FW update mode...');
+    await _writeU8(id, CH_MODE, FW_UPDATE_MODE_VALUE);
+    setState(() => _status = 'FW update mode command sent');
+  }
+
   void _debouncedWriteFilter(double v) {
     setState(() => _filter = v);
     _tFilter?.cancel();
@@ -854,7 +940,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             enabled: _connected && !_busy,
             vbat: _vbatV,
             time: _vbatTime,
-            onRefresh: _refreshBattery,
+            onShutdown: _confirmAndShutdown,
+            onTitleTap: _handleBatteryTitleTap,
           ),
 
           const SizedBox(height: 4),
@@ -1031,8 +1118,6 @@ class _ModeButtons extends StatelessWidget {
             buildButton('ON', LedMode.solid),
             const SizedBox(width: 8),
             buildButton('EQ', LedMode.eq),
-            const SizedBox(width: 8),
-            buildButton('TST', LedMode.test),
           ],
         ),
       ],
@@ -1195,12 +1280,14 @@ class _BatteryCard extends StatelessWidget {
     required this.enabled,
     required this.vbat,
     required this.time,
-    required this.onRefresh,
+    required this.onShutdown,
+    required this.onTitleTap,
   });
   final bool enabled;
   final double? vbat;
   final DateTime? time;
-  final VoidCallback onRefresh;
+  final VoidCallback onShutdown;
+  final VoidCallback onTitleTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1219,7 +1306,11 @@ class _BatteryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Battery', style: Theme.of(context).textTheme.titleMedium),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: enabled ? onTitleTap : null,
+              child: Text('Power', style: Theme.of(context).textTheme.titleMedium),
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1260,9 +1351,9 @@ class _BatteryCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 FilledButton.icon(
-                  onPressed: enabled ? onRefresh : null,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
+                  onPressed: enabled ? onShutdown : null,
+                  icon: const Icon(Icons.power_settings_new),
+                  label: const Text('Shut down'),
                 ),
               ],
             ),
