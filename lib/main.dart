@@ -568,17 +568,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final data = await UniversalBle.read(id, SVC_LED, CH_VOL_MIN_MAX);
       final minV = _u16leAt(data, 0);
       final maxV = _u16leAt(data, 2);
+      final range = maxV - minV;
+      if (range <= 0) {
+        setState(() {
+          _recentMinVolume = minV;
+          _recentMaxVolume = maxV;
+          _status = 'AUTO failed: invalid min/max range';
+        });
+        return;
+      }
 
-      final autoNoise = (minV * 0.9).round().clamp(0, 1500);
+      // From FW mapping:
+      // led = (loudness - noiseFloor) * sensitivityF * (brightness/100)
+      // For full-range mapping over current window: min->0 and max->brightness.
+      // That yields:
+      // noiseFloor = minV
+      // sensitivityF = 100 / (maxV - minV)
+      const double sensitivityScale = 1.0/0.0005;    //from FW (SENSITIVITY_CONV_FACTOR)
+      final autoNoiseRaw = minV;
+      final autoNoise = autoNoiseRaw.clamp(0, 1500);
+      final autoSensitivity = ((100.0 / range.toDouble()) * sensitivityScale).round().clamp(0, 1000);
+      final noiseClipped = autoNoiseRaw != autoNoise;
 
       setState(() {
         _recentMinVolume = minV;
         _recentMaxVolume = maxV;
+        _sensitivity = autoSensitivity.toDouble();
         _noise_floor = autoNoise.toDouble();
-        _status = 'Noise floor set from min volume';
+        _status = noiseClipped
+            ? 'AUTO EQ cliped'
+            : 'AUTO EQ done';
       });
 
       await _writeSlider(id, CH_NOISE_FLOOR, autoNoise, uiFallbackByte: autoNoise);
+      await _writeSlider(id, CH_SENSITIVITY, autoSensitivity, uiFallbackByte: autoSensitivity);
     } catch (e) {
       _setStatus('Auto noise floor failed: $e');
     } finally {
