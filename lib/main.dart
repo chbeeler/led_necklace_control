@@ -526,7 +526,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final s = await UniversalBle.read(deviceId, SVC_LED, CH_NOISE_FLOOR);
       final v = _readSliderValue(s);
-      setState(() => _noise_floor = v.toDouble().clamp(0, 1000));
+      setState(() => _noise_floor = v.toDouble().clamp(0, 1500));
     } catch (_) {}
   }
 
@@ -566,7 +566,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final minV = _u16leAt(data, 0);
       final maxV = _u16leAt(data, 2);
 
-      final autoNoise = (minV * 0.9).round().clamp(0, 1000);
+      final autoNoise = (minV * 0.9).round().clamp(0, 1500);
 
       setState(() {
         _recentMinVolume = minV;
@@ -642,7 +642,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _tSens = Timer(const Duration(milliseconds: 120), () async {
       final id = _deviceId;
       if (id == null || !_connected) return;
-      final ui = _noise_floor.round().clamp(0, 1000);
+      final ui = _noise_floor.round().clamp(0, 1500);
       await _writeSlider(id, CH_NOISE_FLOOR, ui, uiFallbackByte: ui);
     });
   }
@@ -1022,7 +1022,7 @@ class _ModeButtons extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Mode', style: Theme.of(context).textTheme.labelLarge),
+        Text('LED Mode', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 6),
         Row(
           children: [
@@ -1122,7 +1122,20 @@ class _SettingsCard extends StatelessWidget {
             const SizedBox(height: 4),
 
             _LabeledSlider(
-              title: 'Filter',
+              title: 'EQ Sensitivity',
+              subtitle: '0..1000 • $sensitivityLabel',
+              enabled: enabled,
+              value: sensitivity,
+              min: 0,
+              max: 1000,
+              divisions: 500,
+              onChanged: enabled ? onSensitivityChanged : null,
+            ),
+            
+            const SizedBox(height: 4),
+
+            _LabeledSlider(
+              title: 'EQ Reaction Speed',
               subtitle: '0..255 • $filterLabel',
               enabled: enabled,
               value: filter,
@@ -1135,26 +1148,13 @@ class _SettingsCard extends StatelessWidget {
             const SizedBox(height: 4),
 
             _LabeledSlider(
-              title: 'Sensitivity',
-              subtitle: '0..1000 • $sensitivityLabel',
-              enabled: enabled,
-              value: sensitivity,
-              min: 0,
-              max: 1000,
-              divisions: 500,
-              onChanged: enabled ? onSensitivityChanged : null,
-            ),
-
-            const SizedBox(height: 4),
-
-            _LabeledSlider(
-              title: 'Noise Floor',
-              subtitle: '0..1000 • $noiseFloorLabel',
+              title: 'EQ Noise Floor',
+              subtitle: '0..1500 • $noiseFloorLabel',
               enabled: enabled,
               value: noise_floor,
               min: 0,
-              max: 1000,
-              divisions: 500,
+              max: 1500,
+              divisions: 750,
               onChanged: enabled ? onNoiseFloorChanged : null,
             ),
 
