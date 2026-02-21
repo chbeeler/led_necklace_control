@@ -907,15 +907,28 @@ class _ConnectionChip extends StatelessWidget {
     final bg = connected ? cs.primaryContainer : cs.surfaceContainerHighest;
     final fg = connected ? cs.onPrimaryContainer : cs.onSurfaceVariant;
 
+    const int maxChars = 18; // tweak: 16..22 works well
+
+    String shortStatus(String s) {
+      s = s.trim();
+      if (s.length <= maxChars) return s;
+      return '${s.substring(0, maxChars - 1)}…';
+    }
+
     return Chip(
-      label: Text(status),
+      label: Text(
+        shortStatus(status),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
+      ),
       avatar: Icon(
         connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
         size: 18,
         color: fg,
       ),
       backgroundColor: bg,
-      side: BorderSide(color: Colors.transparent),
+      side: const BorderSide(color: Colors.transparent),
       labelStyle: TextStyle(color: fg),
     );
   }
