@@ -147,6 +147,7 @@ const String CH_MODE = '19B10053-E8F2-537E-4F6C-D104768A1214';
 //const String CH_VBAT_THRES = '19B10054-E8F2-537E-4F6C-D104768A1214';
 const String CH_VBAT = '19B10055-E8F2-537E-4F6C-D104768A1214';
 const String CH_FILTER = '19B10100-E8F2-537E-4F6C-D104768A1214';
+const String CH_AEQ_FILTER = '19B10130-E8F2-537E-4F6C-D104768A1214';
 const String CH_NOISE_FLOOR = '19B10056-E8F2-537E-4F6C-D104768A1214';
 const String CH_VOL_MIN_MAX = '19B10120-E8F2-537E-4F6C-D104768A1214';
 //const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
@@ -178,6 +179,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double _brightness = 120; // UI 0..500
   LedMode _mode = LedMode.eq;
   double _filter = 0; // 0..255
+  double _aeqFilter = 0; // 0..255
   double _sensitivity = 1000; // 0..1000
   double _noise_floor = 10;
   int? _recentMinVolume;
@@ -194,6 +196,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _tBright;
   Timer? _tMode;
   Timer? _tFilter;
+  Timer? _tAeqFilter;
   Timer? _tSens;
   Timer? _tVthres;
 
@@ -229,6 +232,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _tBright?.cancel();
     _tMode?.cancel();
     _tFilter?.cancel();
+    _tAeqFilter?.cancel();
     _tSens?.cancel();
     _tVthres?.cancel();
     _scanSub?.cancel();
@@ -522,6 +526,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
 
     try {
+      final f = await UniversalBle.read(deviceId, SVC_LED, CH_AEQ_FILTER);
+      final v = _readSliderValue(f);
+      setState(() => _aeqFilter = v.toDouble().clamp(0, 255));
+    } catch (_) {}
+
+    try {
       final s = await UniversalBle.read(deviceId, SVC_LED, CH_SENSITIVITY);
       final v = _readSliderValue(s);
       setState(() => _sensitivity = v.toDouble().clamp(0, 1000));
@@ -588,7 +598,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       const double sensitivityScale = 1.0/0.0005;    //from FW (SENSITIVITY_CONV_FACTOR)
       final autoNoiseRaw = minV;
       final autoNoise = autoNoiseRaw.clamp(0, 1500);
-      final autoSensitivity = ((100.0 / range.toDouble()) * sensitivityScale).round().clamp(0, 1000);
+      final rawAutoSensitivity = (100.0 / range.toDouble()) * sensitivityScale;
+      debugPrint(
+        'AUTO EQ: min=$minV max=$maxV range=$range rawAutoSensitivity=$rawAutoSensitivity',
+      );
+      final autoSensitivity = rawAutoSensitivity.round().clamp(0, 1000);
       final noiseClipped = autoNoiseRaw != autoNoise;
 
       setState(() {
@@ -738,6 +752,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (id == null || !_connected) return;
       final ui = _filter.round().clamp(0, 255);
       await _writeSlider(id, CH_FILTER, ui, uiFallbackByte: ui);
+    });
+  }
+
+  void _debouncedWriteAeqFilter(double v) {
+    setState(() => _aeqFilter = v);
+    _tAeqFilter?.cancel();
+    _tAeqFilter = Timer(const Duration(milliseconds: 120), () async {
+      final id = _deviceId;
+      if (id == null || !_connected) return;
+      final ui = _aeqFilter.round().clamp(0, 255);
+      await _writeSlider(id, CH_AEQ_FILTER, ui, uiFallbackByte: ui);
     });
   }
 
@@ -954,6 +979,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             filter: _filter,
             filterLabel: '${_filter.round()}',
             onFilterChanged: _debouncedWriteFilter,
+            aeqFilter: _aeqFilter,
+            aeqFilterLabel: '${_aeqFilter.round()}',
+            onAeqFilterChanged: _debouncedWriteAeqFilter,
             sensitivity: _sensitivity,
             sensitivityLabel: '${_sensitivity.round()}',
             onSensitivityChanged: _debouncedWriteSensitivity,
@@ -1172,6 +1200,9 @@ class _SettingsCard extends StatelessWidget {
     required this.filter,
     required this.filterLabel,
     required this.onFilterChanged,
+    required this.aeqFilter,
+    required this.aeqFilterLabel,
+    required this.onAeqFilterChanged,
     required this.sensitivity,
     required this.sensitivityLabel,
     required this.onSensitivityChanged,
@@ -1197,6 +1228,10 @@ class _SettingsCard extends StatelessWidget {
   final double filter;
   final String filterLabel;
   final ValueChanged<double> onFilterChanged;
+
+  final double aeqFilter;
+  final String aeqFilterLabel;
+  final ValueChanged<double> onAeqFilterChanged;
 
   final double sensitivity;
   final String sensitivityLabel;
@@ -1355,6 +1390,19 @@ class _SettingsCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 8),
+
+            _LabeledSlider(
+              title: 'AEQ Filter',
+              subtitle: '0..255 • $aeqFilterLabel',
+              enabled: enabled,
+              value: aeqFilter,
+              min: 0,
+              max: 255,
+              divisions: 255,
+              onChanged: enabled ? onAeqFilterChanged : null,
             ),
           ],
         ),
