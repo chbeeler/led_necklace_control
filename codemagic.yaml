@@ -35,11 +35,11 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 120
     integrations:
-      app_store_connect: REPLACE_WITH_CODEMAGIC_APP_STORE_CONNECT_KEY_NAME
+      app_store_connect: CodeMagic
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.yourname.lednecklacecontrol
+        bundle_identifier: com.lednecklacecontrol.app
       flutter: stable
       xcode: latest
       cocoapods: default

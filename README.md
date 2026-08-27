@@ -12,9 +12,9 @@ This repository includes `codemagic.yaml` with two iOS workflows:
 Before running `ios_testflight`, replace the placeholder values in `codemagic.yaml`:
 
 - `REPLACE_WITH_CODEMAGIC_APP_STORE_CONNECT_KEY_NAME`
-- `com.yourname.lednecklacecontrol`
+- `com.lednecklacecontrol.app`
 
-Also update the iOS bundle identifier in `ios/Runner.xcodeproj/project.pbxproj` from `com.yourname.lednecklacecontrol` to the same final bundle ID.
+Also update the iOS bundle identifier in `ios/Runner.xcodeproj/project.pbxproj` from `com.lednecklacecontrol.app` to the same final bundle ID.
 
 ## Local checks
 
