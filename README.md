@@ -1,16 +1,27 @@
-# led_necklace_control
+# LED Necklace Control
 
-A new Flutter project.
+A Flutter app for controlling a BLE LED necklace.
 
-## Getting Started
+## iOS cloud builds
 
-This project is a starting point for a Flutter application.
+This repository includes `codemagic.yaml` with two iOS workflows:
 
-A few resources to get you started if this is your first Flutter project:
+- `ios_unsigned_check`: builds the iOS app on Codemagic without Apple code signing. This can be run before creating an Apple Developer account and is useful for catching Flutter, CocoaPods, and Xcode compile problems.
+- `ios_testflight`: builds a signed `.ipa` and uploads it to TestFlight. This needs an Apple Developer Program membership, an App Store Connect app, a distribution signing setup, and the Codemagic App Store Connect integration.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Before running `ios_testflight`, replace the placeholder values in `codemagic.yaml`:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- `REPLACE_WITH_CODEMAGIC_APP_STORE_CONNECT_KEY_NAME`
+- `com.yourname.lednecklacecontrol`
+
+Also update the iOS bundle identifier in `ios/Runner.xcodeproj/project.pbxproj` from `com.yourname.lednecklacecontrol` to the same final bundle ID.
+
+## Local checks
+
+Run these before pushing:
+
+```sh
+flutter pub get
+flutter analyze
+flutter test
+```
