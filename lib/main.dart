@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -48,10 +49,7 @@ class NecklaceApp extends StatelessWidget {
         scaffoldBackgroundColor: kBg,
 
         // Keep text white
-        textTheme: base.textTheme.apply(
-          bodyColor: kText,
-          displayColor: kText,
-        ),
+        textTheme: base.textTheme.apply(bodyColor: kText, displayColor: kText),
 
         iconTheme: const IconThemeData(color: kGold),
 
@@ -94,17 +92,11 @@ class NecklaceApp extends StatelessWidget {
           thumbColor: kGold,
           overlayColor: kGold.withOpacity(0.15),
           valueIndicatorColor: kGold,
-          valueIndicatorTextStyle: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
-          ),
+          valueIndicatorTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
         ),
 
         // Optional: make dividers/outlines subtle
-        dividerTheme: const DividerThemeData(
-          color: Color(0xFF2C2C2E),
-          thickness: 1,
-        ),
+        dividerTheme: const DividerThemeData(color: Color(0xFF2C2C2E), thickness: 1),
       ),
       home: const HomePage(),
     );
@@ -115,29 +107,29 @@ enum LedMode { off, eq, solid, aeq, firefly }
 
 extension LedModeUi on LedMode {
   String get label => switch (this) {
-        LedMode.off => 'Off',
-        LedMode.eq => 'EQ',
-        LedMode.solid => 'Solid',
-        LedMode.aeq => 'AEQ',
-        LedMode.firefly => 'Firefly',
-      };
+    LedMode.off => 'Off',
+    LedMode.eq => 'EQ',
+    LedMode.solid => 'Solid',
+    LedMode.aeq => 'AEQ',
+    LedMode.firefly => 'Firefly',
+  };
 
   int get fwValue => switch (this) {
-        LedMode.off => 0,
-        LedMode.eq => 1,
-        LedMode.solid => 2,
-        LedMode.aeq => 3,
-        LedMode.firefly => 4,
-      };
+    LedMode.off => 0,
+    LedMode.eq => 1,
+    LedMode.solid => 2,
+    LedMode.aeq => 3,
+    LedMode.firefly => 4,
+  };
 
   static LedMode fromFw(int v) => switch (v) {
-        0 => LedMode.off,
-        1 => LedMode.eq,
-        2 => LedMode.solid,
-        3 => LedMode.aeq,
-        4 => LedMode.firefly,
-        _ => LedMode.eq,
-      };
+    0 => LedMode.off,
+    1 => LedMode.eq,
+    2 => LedMode.solid,
+    3 => LedMode.aeq,
+    4 => LedMode.firefly,
+    _ => LedMode.eq,
+  };
 }
 
 // ===================== UUIDs =====================
@@ -155,9 +147,67 @@ const String CH_AEQ_FILTER = '19B10130-E8F2-537E-4F6C-D104768A1214';
 const String CH_NOISE_FLOOR = '19B10056-E8F2-537E-4F6C-D104768A1214';
 const String CH_VOL_MIN_MAX = '19B10120-E8F2-537E-4F6C-D104768A1214';
 const String CH_NFC_URI = '19B10150-E8F2-537E-4F6C-D104768A1214';
+const String CH_AUDIO_TELEMETRY = '19B10160-E8F2-537E-4F6C-D104768A1214';
 //const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
 const int SHUTDOWN_MODE_VALUE = 9;
 const int NFC_URI_MAX_BYTES = 120;
+
+double _dbfs(int value) {
+  if (value <= 0) return -90;
+  return (20 * math.log(value / 32768.0) / math.ln10).clamp(-90, 0);
+}
+
+class _AudioTelemetry {
+  const _AudioTelemetry({
+    required this.rawPeak,
+    required this.rms,
+    required this.envelope,
+    required this.floor,
+    required this.ceiling,
+    required this.output,
+    required this.clippedSamples,
+    required this.totalSamples,
+    required this.saturatedBlocks,
+    required this.totalAeqBlocks,
+    required this.droppedBlocks,
+  });
+
+  final int rawPeak;
+  final int rms;
+  final int envelope;
+  final int floor;
+  final int ceiling;
+  final int output;
+  final int clippedSamples;
+  final int totalSamples;
+  final int saturatedBlocks;
+  final int totalAeqBlocks;
+  final int droppedBlocks;
+
+  static _AudioTelemetry? fromBytes(Uint8List value) {
+    if (value.length < 20) return null;
+    final data = ByteData.sublistView(value);
+    return _AudioTelemetry(
+      rawPeak: data.getUint16(0, Endian.little),
+      rms: data.getUint16(2, Endian.little),
+      envelope: data.getUint16(4, Endian.little),
+      floor: data.getUint16(6, Endian.little),
+      ceiling: data.getUint16(8, Endian.little),
+      output: data.getUint16(10, Endian.little),
+      clippedSamples: data.getUint16(12, Endian.little),
+      totalSamples: data.getUint16(14, Endian.little),
+      saturatedBlocks: value[16],
+      totalAeqBlocks: value[17],
+      droppedBlocks: data.getUint16(18, Endian.little),
+    );
+  }
+}
+
+class _AudioPoint {
+  const _AudioPoint(this.time, this.telemetry);
+  final DateTime time;
+  final _AudioTelemetry telemetry;
+}
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
 // If your FW expects just 1 byte, keep false (recommended for MVP).
@@ -192,6 +242,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final TextEditingController _nfcUriController = TextEditingController();
   bool _nfcSupported = false;
   bool _nfcSaving = false;
+  bool _audioTelemetrySupported = false;
+  bool _audioFrozen = false;
+  _AudioTelemetry? _audioTelemetry;
+  final List<_AudioPoint> _audioPoints = [];
+  int _droppedAudioBlocks = 0;
 
   // vBat threshold slider: 3.0..4.3 V (sent as V*10 as u16/u32)
   double _vbatThresV = 3.8;
@@ -212,6 +267,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   StreamSubscription<BleDevice>? _scanSub;
   StreamSubscription<bool>? _connSub;
   StreamSubscription<Uint8List>? _vbatSub;
+  StreamSubscription<Uint8List>? _audioTelemetrySub;
   void Function(void Function())? _deviceDialogSetState;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _batteryCardKey = GlobalKey();
@@ -244,6 +300,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scanSub?.cancel();
     _connSub?.cancel();
     _vbatSub?.cancel();
+    _audioTelemetrySub?.cancel();
     _nfcUriController.dispose();
     if (_deviceId != null) {
       // best-effort
@@ -364,6 +421,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _vbatTime = null;
       _nfcSupported = false;
       _nfcUriController.clear();
+      _audioTelemetrySupported = false;
+      _audioFrozen = false;
+      _audioTelemetry = null;
+      _audioPoints.clear();
+      _droppedAudioBlocks = 0;
     });
 
     try {
@@ -390,6 +452,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         await UniversalBle.requestMtu(deviceId, 128);
       } catch (_) {}
+
+      // Audio telemetry is optional so older firmware remains compatible.
+      try {
+        final initial = await UniversalBle.read(deviceId, SVC_LED, CH_AUDIO_TELEMETRY);
+        _handleAudioTelemetry(initial);
+        await UniversalBle.subscribeNotifications(deviceId, SVC_LED, CH_AUDIO_TELEMETRY);
+        await _audioTelemetrySub?.cancel();
+        _audioTelemetrySub = UniversalBle.characteristicValueStream(
+          deviceId,
+          CH_AUDIO_TELEMETRY,
+        ).listen(_handleAudioTelemetry);
+        setState(() => _audioTelemetrySupported = true);
+      } catch (_) {
+        setState(() => _audioTelemetrySupported = false);
+      }
 
       // Subscribe battery notifications if supported by your FW
       // (If you don't implement notify on the FW, this will fail silently and Refresh will still work.)
@@ -436,12 +513,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         await UniversalBle.unsubscribe(id, SVC_LED, CH_VBAT);
       } catch (_) {}
+      try {
+        await UniversalBle.unsubscribe(id, SVC_LED, CH_AUDIO_TELEMETRY);
+      } catch (_) {}
       await UniversalBle.disconnect(id);
     } catch (_) {
       // ignore
     } finally {
       await _connSub?.cancel();
       await _vbatSub?.cancel();
+      await _audioTelemetrySub?.cancel();
       setState(() {
         _busy = false;
         _connected = false;
@@ -620,13 +701,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // That yields:
       // noiseFloor = minV
       // sensitivityF = 100 / (maxV - minV)
-      const double sensitivityScale = 1.0/0.0005;    //from FW (SENSITIVITY_CONV_FACTOR)
+      const double sensitivityScale = 1.0 / 0.0005; //from FW (SENSITIVITY_CONV_FACTOR)
       final autoNoiseRaw = minV;
       final autoNoise = autoNoiseRaw.clamp(0, 1500);
       final rawAutoSensitivity = (100.0 / range.toDouble()) * sensitivityScale;
-      debugPrint(
-        'AUTO EQ: min=$minV max=$maxV range=$range rawAutoSensitivity=$rawAutoSensitivity',
-      );
+      debugPrint('AUTO EQ: min=$minV max=$maxV range=$range rawAutoSensitivity=$rawAutoSensitivity');
       final autoSensitivity = rawAutoSensitivity.round().clamp(0, 1000);
       final noiseClipped = autoNoiseRaw != autoNoise;
 
@@ -635,9 +714,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _recentMaxVolume = maxV;
         _sensitivity = autoSensitivity.toDouble();
         _noise_floor = autoNoise.toDouble();
-        _status = noiseClipped
-            ? 'AUTO EQ cliped'
-            : 'AUTO EQ done';
+        _status = noiseClipped ? 'AUTO EQ cliped' : 'AUTO EQ done';
       });
 
       await _writeSlider(id, CH_NOISE_FLOOR, autoNoise, uiFallbackByte: autoNoise);
@@ -694,18 +771,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (context) {
         return AlertDialog(
           title: const Text('Shut down necklace?'),
-          content: const Text(
-            'After proceeding, the necklace can only be turned back on by providing USB power.',
-          ),
+          content: const Text('After proceeding, the necklace can only be turned back on by providing USB power.'),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Proceed'),
-            ),
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Proceed')),
           ],
         );
       },
@@ -720,6 +789,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() => _status = 'Shutdown command sent');
   }
 
+  void _handleAudioTelemetry(Uint8List value) {
+    final telemetry = _AudioTelemetry.fromBytes(value);
+    if (telemetry == null || !mounted) return;
+
+    final now = DateTime.now();
+    setState(() {
+      _audioTelemetry = telemetry;
+      _droppedAudioBlocks += telemetry.droppedBlocks;
+      if (!_audioFrozen) {
+        _audioPoints.add(_AudioPoint(now, telemetry));
+        final cutoff = now.subtract(const Duration(seconds: 30));
+        _audioPoints.removeWhere((point) => point.time.isBefore(cutoff));
+      }
+    });
+  }
+
+  void _resetAudioStatistics() {
+    setState(() {
+      _audioPoints.clear();
+      _droppedAudioBlocks = 0;
+    });
+  }
+
+  void _toggleAudioFreeze() {
+    setState(() => _audioFrozen = !_audioFrozen);
+  }
+
   Future<void> _saveNfcUri() async {
     final id = _deviceId;
     if (id == null || !_connected || !_nfcSupported || _nfcSaving) return;
@@ -728,9 +824,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final parsed = Uri.tryParse(value);
     final scheme = parsed?.scheme.toLowerCase();
     final encoded = utf8.encode(value);
-    if (parsed == null ||
-        (scheme != 'http' && scheme != 'https') ||
-        parsed.host.isEmpty) {
+    if (parsed == null || (scheme != 'http' && scheme != 'https') || parsed.host.isEmpty) {
       _setStatus('NFC link must be a complete http:// or https:// URL');
       return;
     }
@@ -744,13 +838,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _status = 'Saving NFC link...';
     });
     try {
-      await UniversalBle.write(
-        id,
-        SVC_LED,
-        CH_NFC_URI,
-        Uint8List.fromList(encoded),
-        withoutResponse: false,
-      );
+      await UniversalBle.write(id, SVC_LED, CH_NFC_URI, Uint8List.fromList(encoded), withoutResponse: false);
 
       // Firmware applies BLE writes from its main loop. Read back the value so
       // rejected or failed updates are never reported as saved.
@@ -818,13 +906,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _writeU8(String deviceId, String charUuid, int v) async {
     try {
-      await UniversalBle.write(
-        deviceId,
-        SVC_LED,
-        charUuid,
-        Uint8List.fromList([v & 0xFF]),
-        withoutResponse: false,
-      );
+      await UniversalBle.write(deviceId, SVC_LED, charUuid, Uint8List.fromList([v & 0xFF]), withoutResponse: false);
     } catch (e) {
       _setStatus('Write failed: $e');
     }
@@ -835,13 +917,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final bd = ByteData.sublistView(bytes);
     bd.setUint16(0, v & 0xFFFF, Endian.little);
     try {
-      await UniversalBle.write(
-        deviceId,
-        SVC_LED,
-        charUuid,
-        bytes,
-        withoutResponse: false,
-      );
+      await UniversalBle.write(deviceId, SVC_LED, charUuid, bytes, withoutResponse: false);
     } catch (e) {
       _setStatus('Write failed: $e');
     }
@@ -1021,6 +1097,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             recentMaxVolume: _recentMaxVolume,
           ),
 
+          if (_audioTelemetrySupported) ...[
+            const SizedBox(height: 4),
+            _AudioDebugCard(
+              telemetry: _audioTelemetry,
+              points: List.unmodifiable(_audioPoints),
+              droppedBlocks: _droppedAudioBlocks,
+              frozen: _audioFrozen,
+              onReset: _resetAudioStatistics,
+              onToggleFreeze: _toggleAudioFreeze,
+            ),
+          ],
+
           const SizedBox(height: 4),
 
           _BatteryCard(
@@ -1043,27 +1131,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
           const SizedBox(height: 4),
 
-        //   Container(
-        //     padding: const EdgeInsets.all(12),
-        //     decoration: BoxDecoration(
-        //       color: cs.surfaceContainerHighest,
-        //       borderRadius: BorderRadius.circular(12),
-        //     ),
-        //     child: Row(
-        //       children: [
-        //         Icon(Icons.tips_and_updates_outlined, color: cs.onSurfaceVariant),
-        //         const SizedBox(width: 10),
-        //         Expanded(
-        //           child: Text(
-        //             SEND_SLIDERS_AS_U32
-        //                 ? 'Slider writes are 4-byte little-endian (u32).'
-        //                 : 'Slider writes are 1-byte values (u8). Flip SEND_SLIDERS_AS_U32 if your FW expects u32.',
-        //             style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-        //           ),
-        //         ),
-        //       ],
-        //     ),
-        //   ),
+          //   Container(
+          //     padding: const EdgeInsets.all(12),
+          //     decoration: BoxDecoration(
+          //       color: cs.surfaceContainerHighest,
+          //       borderRadius: BorderRadius.circular(12),
+          //     ),
+          //     child: Row(
+          //       children: [
+          //         Icon(Icons.tips_and_updates_outlined, color: cs.onSurfaceVariant),
+          //         const SizedBox(width: 10),
+          //         Expanded(
+          //           child: Text(
+          //             SEND_SLIDERS_AS_U32
+          //                 ? 'Slider writes are 4-byte little-endian (u32).'
+          //                 : 'Slider writes are 1-byte values (u8). Flip SEND_SLIDERS_AS_U32 if your FW expects u32.',
+          //             style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //   ),
         ],
       ),
       bottomNavigationBar: _busy
@@ -1100,17 +1188,8 @@ class _ConnectionChip extends StatelessWidget {
     }
 
     return Chip(
-      label: Text(
-        shortStatus(status),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        softWrap: false,
-      ),
-      avatar: Icon(
-        connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-        size: 18,
-        color: fg,
-      ),
+      label: Text(shortStatus(status), maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false),
+      avatar: Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, size: 18, color: fg),
       backgroundColor: bg,
       side: const BorderSide(color: Colors.transparent),
       labelStyle: TextStyle(color: fg),
@@ -1178,26 +1257,19 @@ class _ModeButtons extends StatelessWidget {
           style: ButtonStyle(
             backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
             foregroundColor: WidgetStateProperty.all(textColor),
-            padding: WidgetStateProperty.all(
-              EdgeInsets.symmetric(vertical: isActive ? 12 : 11),
-            ),
+            padding: WidgetStateProperty.all(EdgeInsets.symmetric(vertical: isActive ? 12 : 11)),
             shape: WidgetStateProperty.all(
               RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
-                side: BorderSide(
-                  color: isActive ? kGold : cs.outlineVariant,
-                  width: isActive ? 2 : 1,
-                ),
+                side: BorderSide(color: isActive ? kGold : cs.outlineVariant, width: isActive ? 2 : 1),
               ),
             ),
           ),
           child: Text(
             label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: textColor,
-                  fontWeight: fontWeight,
-                  letterSpacing: 0.6,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: textColor, fontWeight: fontWeight, letterSpacing: 0.6),
           ),
         ),
       );
@@ -1315,16 +1387,11 @@ class _SettingsCard extends StatelessWidget {
                     style: ButtonStyle(
                       backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
                       foregroundColor: WidgetStateProperty.all(cs.onSurfaceVariant),
-                      padding: WidgetStateProperty.all(
-                        const EdgeInsets.symmetric(vertical: 11),
-                      ),
+                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 11)),
                       shape: WidgetStateProperty.all(
                         RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(
-                            color: cs.outlineVariant,
-                            width: 1,
-                          ),
+                          side: BorderSide(color: cs.outlineVariant, width: 1),
                         ),
                       ),
                     ),
@@ -1338,16 +1405,11 @@ class _SettingsCard extends StatelessWidget {
                     style: ButtonStyle(
                       backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
                       foregroundColor: WidgetStateProperty.all(cs.onSurfaceVariant),
-                      padding: WidgetStateProperty.all(
-                        const EdgeInsets.symmetric(vertical: 11),
-                      ),
+                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 11)),
                       shape: WidgetStateProperty.all(
                         RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(
-                            color: cs.outlineVariant,
-                            width: 1,
-                          ),
+                          side: BorderSide(color: cs.outlineVariant, width: 1),
                         ),
                       ),
                     ),
@@ -1359,11 +1421,7 @@ class _SettingsCard extends StatelessWidget {
 
             const SizedBox(height: 8),
 
-            _ModeButtons(
-              enabled: enabled,
-              mode: mode,
-              onModeChanged: onModeChanged,
-            ),
+            _ModeButtons(enabled: enabled, mode: mode, onModeChanged: onModeChanged),
 
             const SizedBox(height: 4),
 
@@ -1377,7 +1435,7 @@ class _SettingsCard extends StatelessWidget {
               divisions: 500,
               onChanged: enabled ? onSensitivityChanged : null,
             ),
-            
+
             const SizedBox(height: 4),
 
             _LabeledSlider(
@@ -1420,10 +1478,7 @@ class _SettingsCard extends StatelessWidget {
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: FilledButton(
-                      onPressed: enabled ? onAutoNoiseFloor : null,
-                      child: const Text('AUTO'),
-                    ),
+                    child: FilledButton(onPressed: enabled ? onAutoNoiseFloor : null, child: const Text('AUTO')),
                   ),
                 ),
               ],
@@ -1448,6 +1503,240 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
+class _AudioDebugCard extends StatelessWidget {
+  const _AudioDebugCard({
+    required this.telemetry,
+    required this.points,
+    required this.droppedBlocks,
+    required this.frozen,
+    required this.onReset,
+    required this.onToggleFreeze,
+  });
+
+  final _AudioTelemetry? telemetry;
+  final List<_AudioPoint> points;
+  final int droppedBlocks;
+  final bool frozen;
+  final VoidCallback onReset;
+  final VoidCallback onToggleFreeze;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final now = points.isEmpty ? DateTime.now() : points.last.time;
+    final cutoff = now.subtract(const Duration(seconds: 10));
+    final recent = points.where((point) => !point.time.isBefore(cutoff));
+
+    int peak = 0;
+    int clippedSamples = 0;
+    int totalSamples = 0;
+    int saturatedBlocks = 0;
+    int totalAeqBlocks = 0;
+    for (final point in recent) {
+      final value = point.telemetry;
+      if (value.rawPeak > peak) peak = value.rawPeak;
+      clippedSamples += value.clippedSamples;
+      totalSamples += value.totalSamples;
+      saturatedBlocks += value.saturatedBlocks;
+      totalAeqBlocks += value.totalAeqBlocks;
+    }
+
+    final clipPercent = totalSamples == 0 ? 0.0 : clippedSamples * 100.0 / totalSamples;
+    final saturationPercent = totalAeqBlocks == 0 ? null : saturatedBlocks * 100.0 / totalAeqBlocks;
+    final current = telemetry;
+
+    Widget metric(String label, String value, {bool warning = false}) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: warning ? Colors.redAccent : cs.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+            const SizedBox(height: 3),
+            Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: warning ? Colors.redAccent : null, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text('Audio Debug', style: Theme.of(context).textTheme.titleMedium)),
+                TextButton.icon(
+                  onPressed: onToggleFreeze,
+                  icon: Icon(frozen ? Icons.play_arrow : Icons.pause),
+                  label: Text(frozen ? 'Resume' : 'Freeze'),
+                ),
+                TextButton(onPressed: onReset, child: const Text('Reset')),
+              ],
+            ),
+            const SizedBox(height: 8),
+            GridView.count(
+              crossAxisCount: 2,
+              childAspectRatio: 2.15,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                metric(
+                  'Peak hold (10 s)',
+                  peak == 0 ? '—' : '${_dbfs(peak).toStringAsFixed(1)} dBFS',
+                  warning: peak >= 29204,
+                ),
+                metric('Mic clipping (10 s)', '${clipPercent.toStringAsFixed(3)}%', warning: clippedSamples > 0),
+                metric(
+                  'AEQ saturation (10 s)',
+                  saturationPercent == null ? '—' : '${saturationPercent.toStringAsFixed(1)}%',
+                  warning: saturationPercent != null && saturationPercent > 10,
+                ),
+                metric('Dropped blocks', '$droppedBlocks', warning: droppedBlocks > 0),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 170,
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(6, 8, 6, 4),
+              decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+              child: CustomPaint(
+                painter: _AudioChartPainter(points: points, frozen: frozen),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                _ChartLegend(color: Colors.redAccent, label: 'Peak dBFS'),
+                _ChartLegend(color: Colors.lightBlueAccent, label: 'RMS dBFS'),
+                _ChartLegend(color: kGold, label: 'AEQ output'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              current == null
+                  ? 'Waiting for audio telemetry…'
+                  : 'RMS ${_dbfs(current.rms).toStringAsFixed(1)} dBFS  •  '
+                        'AEQ ${(current.output * 100 / 32767).clamp(0, 100).toStringAsFixed(0)}%  •  '
+                        'Floor ${_dbfs(current.floor).toStringAsFixed(1)} dBFS  •  '
+                        'Ceiling ${_dbfs(current.ceiling).toStringAsFixed(1)} dBFS',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChartLegend extends StatelessWidget {
+  const _ChartLegend({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 14, height: 3, color: color),
+        const SizedBox(width: 5),
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    );
+  }
+}
+
+class _AudioChartPainter extends CustomPainter {
+  const _AudioChartPainter({required this.points, required this.frozen});
+  final List<_AudioPoint> points;
+  final bool frozen;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final grid = Paint()
+      ..color = Colors.white.withValues(alpha: 0.10)
+      ..strokeWidth = 1;
+    for (var i = 0; i <= 3; i++) {
+      final y = size.height * i / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+    if (points.length < 2) return;
+
+    final end = points.last.time;
+    final start = end.subtract(const Duration(seconds: 30));
+    final durationMs = const Duration(seconds: 30).inMilliseconds.toDouble();
+
+    double xFor(DateTime time) =>
+        ((time.difference(start).inMilliseconds / durationMs) * size.width).clamp(0, size.width);
+    double dbY(int value) => size.height * (1 - ((_dbfs(value).clamp(-60, 0) + 60) / 60));
+    double outputY(int value) => size.height * (1 - (value / 32767).clamp(0.0, 1.0));
+
+    Path pathFor(double Function(_AudioTelemetry value) yFor) {
+      final path = Path();
+      for (var i = 0; i < points.length; i++) {
+        final point = points[i];
+        final x = xFor(point.time);
+        final y = yFor(point.telemetry);
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      return path;
+    }
+
+    void drawSeries(Path path, Color color, double width) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+
+    drawSeries(pathFor((value) => dbY(value.rawPeak)), Colors.redAccent, 1.4);
+    drawSeries(pathFor((value) => dbY(value.rms)), Colors.lightBlueAccent, 1.4);
+    drawSeries(pathFor((value) => outputY(value.output)), kGold, 2);
+
+    if (frozen) {
+      final label = TextPainter(
+        text: const TextSpan(
+          text: 'FROZEN',
+          style: TextStyle(color: Colors.white70, fontSize: 11),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(canvas, Offset(size.width - label.width - 4, 4));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AudioChartPainter oldDelegate) =>
+      oldDelegate.points != points || oldDelegate.frozen != frozen;
+}
+
 class _BatteryCard extends StatelessWidget {
   const _BatteryCard({
     super.key,
@@ -1469,7 +1758,9 @@ class _BatteryCard extends StatelessWidget {
 
     final v = vbat;
     final pct = v == null ? null : pctFromV(v);
-    final timeStr = time == null ? '—' : '${time!.hour.toString().padLeft(2, '0')}:${time!.minute.toString().padLeft(2, '0')}';
+    final timeStr = time == null
+        ? '—'
+        : '${time!.hour.toString().padLeft(2, '0')}:${time!.minute.toString().padLeft(2, '0')}';
 
     return Card(
       elevation: 0,
@@ -1489,7 +1780,7 @@ class _BatteryCard extends StatelessWidget {
                       color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                      child: Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
@@ -1533,12 +1824,7 @@ class _BatteryCard extends StatelessWidget {
 }
 
 class _NfcLinkCard extends StatelessWidget {
-  const _NfcLinkCard({
-    required this.enabled,
-    required this.saving,
-    required this.controller,
-    required this.onSave,
-  });
+  const _NfcLinkCard({required this.enabled, required this.saving, required this.controller, required this.onSave});
 
   final bool enabled;
   final bool saving;
@@ -1559,10 +1845,7 @@ class _NfcLinkCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'This is the link opened when a phone scans the necklace.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -1587,11 +1870,7 @@ class _NfcLinkCard extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: enabled ? onSave : null,
                 icon: saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.nfc),
                 label: Text(saving ? 'Saving...' : 'Save link'),
               ),
@@ -1617,9 +1896,9 @@ class _FieldShell extends StatelessWidget {
         Text(title, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 6),
         Theme(
-          data: Theme.of(context).copyWith(
-            inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: cs.surfaceContainerHighest),
-          ),
+          data: Theme.of(
+            context,
+          ).copyWith(inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: cs.surfaceContainerHighest)),
           child: child,
         ),
       ],
@@ -1652,7 +1931,7 @@ class _LabeledSlider extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(12,8,12,4),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1662,9 +1941,9 @@ class _LabeledSlider extends StatelessWidget {
               Expanded(child: Text(title, style: Theme.of(context).textTheme.labelLarge)),
               Text(
                 (divisions == 13 ? value.toStringAsFixed(1) : value.round().toString()),
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: enabled ? cs.primary : cs.onSurfaceVariant,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: enabled ? cs.primary : cs.onSurfaceVariant),
               ),
             ],
           ),
