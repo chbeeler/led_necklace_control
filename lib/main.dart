@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -153,8 +154,10 @@ const String CH_FILTER = '19B10100-E8F2-537E-4F6C-D104768A1214';
 const String CH_AEQ_FILTER = '19B10130-E8F2-537E-4F6C-D104768A1214';
 const String CH_NOISE_FLOOR = '19B10056-E8F2-537E-4F6C-D104768A1214';
 const String CH_VOL_MIN_MAX = '19B10120-E8F2-537E-4F6C-D104768A1214';
+const String CH_NFC_URI = '19B10150-E8F2-537E-4F6C-D104768A1214';
 //const String CH_SETTINGS_STR = '19B10110-E8F2-537E-4F6C-D104768A1214';
 const int SHUTDOWN_MODE_VALUE = 9;
+const int NFC_URI_MAX_BYTES = 120;
 
 // If your FW expects uint32 for these sliders, set this true and we send 4 bytes LE.
 // If your FW expects just 1 byte, keep false (recommended for MVP).
@@ -186,6 +189,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double _noise_floor = 10;
   int? _recentMinVolume;
   int? _recentMaxVolume;
+  final TextEditingController _nfcUriController = TextEditingController();
+  bool _nfcSupported = false;
+  bool _nfcSaving = false;
 
   // vBat threshold slider: 3.0..4.3 V (sent as V*10 as u16/u32)
   double _vbatThresV = 3.8;
@@ -238,6 +244,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scanSub?.cancel();
     _connSub?.cancel();
     _vbatSub?.cancel();
+    _nfcUriController.dispose();
     if (_deviceId != null) {
       // best-effort
       UniversalBle.disconnect(_deviceId!);
@@ -355,6 +362,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _connected = false;
       _vbatV = null;
       _vbatTime = null;
+      _nfcSupported = false;
+      _nfcUriController.clear();
     });
 
     try {
@@ -376,6 +385,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // Discover services (required before read/write)
       await UniversalBle.discoverServices(deviceId);
+
+      // The NFC URI is at most 120 bytes and fits in one write with this MTU.
+      try {
+        await UniversalBle.requestMtu(deviceId, 128);
+      } catch (_) {}
 
       // Subscribe battery notifications if supported by your FW
       // (If you don't implement notify on the FW, this will fail silently and Refresh will still work.)
@@ -542,6 +556,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final v = _readSliderValue(s);
       setState(() => _noise_floor = v.toDouble().clamp(0, 1500));
     } catch (_) {}
+
+    try {
+      final value = await UniversalBle.read(deviceId, SVC_LED, CH_NFC_URI);
+      final uri = utf8.decode(value);
+      setState(() {
+        _nfcSupported = true;
+        _nfcUriController.text = uri;
+      });
+    } catch (_) {
+      setState(() => _nfcSupported = false);
+    }
   }
 
   Future<void> _refreshBattery({bool showBusy = true}) async {
@@ -693,6 +718,58 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() => _status = 'Sending shutdown command...');
     await _writeU8(id, CH_MODE, SHUTDOWN_MODE_VALUE);
     setState(() => _status = 'Shutdown command sent');
+  }
+
+  Future<void> _saveNfcUri() async {
+    final id = _deviceId;
+    if (id == null || !_connected || !_nfcSupported || _nfcSaving) return;
+
+    final value = _nfcUriController.text.trim();
+    final parsed = Uri.tryParse(value);
+    final scheme = parsed?.scheme.toLowerCase();
+    final encoded = utf8.encode(value);
+    if (parsed == null ||
+        (scheme != 'http' && scheme != 'https') ||
+        parsed.host.isEmpty) {
+      _setStatus('NFC link must be a complete http:// or https:// URL');
+      return;
+    }
+    if (encoded.length > NFC_URI_MAX_BYTES) {
+      _setStatus('NFC link is too long (${encoded.length}/$NFC_URI_MAX_BYTES bytes)');
+      return;
+    }
+
+    setState(() {
+      _nfcSaving = true;
+      _status = 'Saving NFC link...';
+    });
+    try {
+      await UniversalBle.write(
+        id,
+        SVC_LED,
+        CH_NFC_URI,
+        Uint8List.fromList(encoded),
+        withoutResponse: false,
+      );
+
+      // Firmware applies BLE writes from its main loop. Read back the value so
+      // rejected or failed updates are never reported as saved.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      final confirmedBytes = await UniversalBle.read(id, SVC_LED, CH_NFC_URI);
+      final confirmed = utf8.decode(confirmedBytes);
+      if (confirmed != value) {
+        throw StateError('necklace kept its previous link');
+      }
+
+      setState(() {
+        _nfcUriController.text = confirmed;
+        _status = 'NFC link saved';
+      });
+    } catch (e) {
+      _setStatus('NFC link write failed: $e');
+    } finally {
+      if (mounted) setState(() => _nfcSaving = false);
+    }
   }
 
   void _debouncedWriteFilter(double v) {
@@ -953,6 +1030,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             time: _vbatTime,
             onShutdown: _confirmAndShutdown,
           ),
+
+          if (_nfcSupported) ...[
+            const SizedBox(height: 4),
+            _NfcLinkCard(
+              enabled: _connected && !_busy && !_nfcSaving,
+              saving: _nfcSaving,
+              controller: _nfcUriController,
+              onSave: _saveNfcUri,
+            ),
+          ],
 
           const SizedBox(height: 4),
 
@@ -1437,6 +1524,77 @@ class _BatteryCard extends StatelessWidget {
                   label: const Text('Shut down'),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NfcLinkCard extends StatelessWidget {
+  const _NfcLinkCard({
+    required this.enabled,
+    required this.saving,
+    required this.controller,
+    required this.onSave,
+  });
+
+  final bool enabled;
+  final bool saving;
+  final TextEditingController controller;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('NFC Link', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text(
+              'This is the link opened when a phone scans the necklace.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              enabled: enabled,
+              keyboardType: TextInputType.url,
+              textInputAction: TextInputAction.done,
+              autocorrect: false,
+              enableSuggestions: false,
+              maxLines: 3,
+              minLines: 1,
+              decoration: const InputDecoration(
+                labelText: 'URL',
+                hintText: 'https://example.com',
+                helperText: 'HTTP(S), up to 120 UTF-8 bytes',
+              ),
+              onSubmitted: enabled ? (_) => onSave() : null,
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: enabled ? onSave : null,
+                icon: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.nfc),
+                label: Text(saving ? 'Saving...' : 'Save link'),
+              ),
             ),
           ],
         ),
