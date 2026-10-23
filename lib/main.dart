@@ -1288,7 +1288,7 @@ class _ModeButtons extends StatelessWidget {
             const SizedBox(width: 8),
             buildButton('EQ', LedMode.eq),
             const SizedBox(width: 8),
-            buildButton('FIRE', LedMode.firefly),
+            buildButton('AEQ', LedMode.aeq),
           ],
         ),
       ],
