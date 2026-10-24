@@ -92,11 +92,17 @@ class NecklaceApp extends StatelessWidget {
           thumbColor: kGold,
           overlayColor: kGold.withOpacity(0.15),
           valueIndicatorColor: kGold,
-          valueIndicatorTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+          valueIndicatorTextStyle: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+          ),
         ),
 
         // Optional: make dividers/outlines subtle
-        dividerTheme: const DividerThemeData(color: Color(0xFF2C2C2E), thickness: 1),
+        dividerTheme: const DividerThemeData(
+          color: Color(0xFF2C2C2E),
+          thickness: 1,
+        ),
       ),
       home: const HomePage(),
     );
@@ -282,7 +288,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_updateBatteryVisibility);
     _initBle();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateBatteryVisibility());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _updateBatteryVisibility(),
+    );
   }
 
   @override
@@ -343,33 +351,42 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     };
 
     // Connection changes (optional; we also use connectionStream for the selected device)
-    UniversalBle.onConnectionChange = (String deviceId, bool connected, String? error) {
-      if (deviceId != _deviceId) return;
-      setState(() {
-        _connected = connected;
-        _busy = false;
-        _status = connected ? 'Connected' : (error != null ? 'Disconnected: $error' : 'Disconnected');
-      });
-      if (!connected) {
-        _stopBatteryPolling();
-      } else {
-        _updateBatteryVisibility();
-      }
-    };
+    UniversalBle.onConnectionChange =
+        (String deviceId, bool connected, String? error) {
+          if (deviceId != _deviceId) return;
+          setState(() {
+            _connected = connected;
+            _busy = false;
+            _status = connected
+                ? 'Connected'
+                : (error != null ? 'Disconnected: $error' : 'Disconnected');
+          });
+          if (!connected) {
+            _stopBatteryPolling();
+          } else {
+            _updateBatteryVisibility();
+          }
+        };
 
-    UniversalBle.onValueChange = (String deviceId, String characteristicId, Uint8List value, int? timestamp) {
-      if (deviceId != _deviceId) return;
+    UniversalBle.onValueChange =
+        (
+          String deviceId,
+          String characteristicId,
+          Uint8List value,
+          int? timestamp,
+        ) {
+          if (deviceId != _deviceId) return;
 
-      final cid = characteristicId.toUpperCase();
-      if (cid == CH_VBAT.toUpperCase()) {
-        final mv = _u16le(value);
-        final v = mv / 1000.0;
-        setState(() {
-          _vbatV = v;
-          _vbatTime = DateTime.now(); // or use timestamp if you want
-        });
-      }
-    };
+          final cid = characteristicId.toUpperCase();
+          if (cid == CH_VBAT.toUpperCase()) {
+            final mv = _u16le(value);
+            final v = mv / 1000.0;
+            setState(() {
+              _vbatV = v;
+              _vbatTime = DateTime.now(); // or use timestamp if you want
+            });
+          }
+        };
   }
 
   Future<void> _startScan() async {
@@ -455,9 +472,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // Audio telemetry is optional so older firmware remains compatible.
       try {
-        final initial = await UniversalBle.read(deviceId, SVC_LED, CH_AUDIO_TELEMETRY);
+        final initial = await UniversalBle.read(
+          deviceId,
+          SVC_LED,
+          CH_AUDIO_TELEMETRY,
+        );
         _handleAudioTelemetry(initial);
-        await UniversalBle.subscribeNotifications(deviceId, SVC_LED, CH_AUDIO_TELEMETRY);
+        await UniversalBle.subscribeNotifications(
+          deviceId,
+          SVC_LED,
+          CH_AUDIO_TELEMETRY,
+        );
         await _audioTelemetrySub?.cancel();
         _audioTelemetrySub = UniversalBle.characteristicValueStream(
           deviceId,
@@ -473,13 +498,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         await UniversalBle.subscribeNotifications(deviceId, SVC_LED, CH_VBAT);
         _vbatSub?.cancel();
-        _vbatSub = UniversalBle.characteristicValueStream(deviceId, CH_VBAT).listen((value) {
-          final mv = _u16le(value);
-          setState(() {
-            _vbatV = mv / 1000.0;
-            _vbatTime = DateTime.now();
-          });
-        });
+        _vbatSub = UniversalBle.characteristicValueStream(deviceId, CH_VBAT)
+            .listen((value) {
+              final mv = _u16le(value);
+              setState(() {
+                _vbatV = mv / 1000.0;
+                _vbatTime = DateTime.now();
+              });
+            });
       } catch (_) {}
 
       // Optional: read initial values (best-effort)
@@ -488,7 +514,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       setState(() {
         _busy = false;
         _connected = true;
-        _deviceName = _scan[deviceId]?.name.isNotEmpty == true ? _scan[deviceId]!.name : 'LED Necklace';
+        _deviceName = _scan[deviceId]?.name.isNotEmpty == true
+            ? _scan[deviceId]!.name
+            : 'LED Necklace';
         _status = 'Connected';
       });
       _updateBatteryVisibility();
@@ -550,16 +578,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               });
 
             return Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                0,
+                16,
+                16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Select Device', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Select Device',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     _busy ? 'Scanning…' : 'Tap your necklace to connect.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   if (_busy && _scan.isEmpty)
@@ -567,14 +605,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Row(
                         children: [
-                          SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                           SizedBox(width: 12),
                           Text('Scanning…'),
                         ],
                       ),
                     ),
                   if (scanList.isEmpty && !_busy)
-                    Text('No devices found. Press Scan again.', style: TextStyle(color: cs.onSurfaceVariant)),
+                    Text(
+                      'No devices found. Press Scan again.',
+                      style: TextStyle(color: cs.onSurfaceVariant),
+                    ),
                   ...scanList.take(10).map((e) {
                     final id = e.key;
                     final it = e.value;
@@ -701,11 +746,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // That yields:
       // noiseFloor = minV
       // sensitivityF = 100 / (maxV - minV)
-      const double sensitivityScale = 1.0 / 0.0005; //from FW (SENSITIVITY_CONV_FACTOR)
+      const double sensitivityScale =
+          1.0 / 0.0005; //from FW (SENSITIVITY_CONV_FACTOR)
       final autoNoiseRaw = minV;
       final autoNoise = autoNoiseRaw.clamp(0, 1500);
       final rawAutoSensitivity = (100.0 / range.toDouble()) * sensitivityScale;
-      debugPrint('AUTO EQ: min=$minV max=$maxV range=$range rawAutoSensitivity=$rawAutoSensitivity');
+      debugPrint(
+        'AUTO EQ: min=$minV max=$maxV range=$range rawAutoSensitivity=$rawAutoSensitivity',
+      );
       final autoSensitivity = rawAutoSensitivity.round().clamp(0, 1000);
       final noiseClipped = autoNoiseRaw != autoNoise;
 
@@ -717,8 +765,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _status = noiseClipped ? 'AUTO EQ cliped' : 'AUTO EQ done';
       });
 
-      await _writeSlider(id, CH_NOISE_FLOOR, autoNoise, uiFallbackByte: autoNoise);
-      await _writeSlider(id, CH_SENSITIVITY, autoSensitivity, uiFallbackByte: autoSensitivity);
+      await _writeSlider(
+        id,
+        CH_NOISE_FLOOR,
+        autoNoise,
+        uiFallbackByte: autoNoise,
+      );
+      await _writeSlider(
+        id,
+        CH_SENSITIVITY,
+        autoSensitivity,
+        uiFallbackByte: autoSensitivity,
+      );
     } catch (e) {
       _setStatus('Auto noise floor failed: $e');
     } finally {
@@ -771,10 +829,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (context) {
         return AlertDialog(
           title: const Text('Shut down necklace?'),
-          content: const Text('After proceeding, the necklace can only be turned back on by providing USB power.'),
+          content: const Text(
+            'After proceeding, the necklace can only be turned back on by providing USB power.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Proceed')),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Proceed'),
+            ),
           ],
         );
       },
@@ -824,12 +890,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final parsed = Uri.tryParse(value);
     final scheme = parsed?.scheme.toLowerCase();
     final encoded = utf8.encode(value);
-    if (parsed == null || (scheme != 'http' && scheme != 'https') || parsed.host.isEmpty) {
+    if (parsed == null ||
+        (scheme != 'http' && scheme != 'https') ||
+        parsed.host.isEmpty) {
       _setStatus('NFC link must be a complete http:// or https:// URL');
       return;
     }
     if (encoded.length > NFC_URI_MAX_BYTES) {
-      _setStatus('NFC link is too long (${encoded.length}/$NFC_URI_MAX_BYTES bytes)');
+      _setStatus(
+        'NFC link is too long (${encoded.length}/$NFC_URI_MAX_BYTES bytes)',
+      );
       return;
     }
 
@@ -838,7 +908,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _status = 'Saving NFC link...';
     });
     try {
-      await UniversalBle.write(id, SVC_LED, CH_NFC_URI, Uint8List.fromList(encoded), withoutResponse: false);
+      await UniversalBle.write(
+        id,
+        SVC_LED,
+        CH_NFC_URI,
+        Uint8List.fromList(encoded),
+        withoutResponse: false,
+      );
 
       // Firmware applies BLE writes from its main loop. Read back the value so
       // rejected or failed updates are never reported as saved.
@@ -906,7 +982,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _writeU8(String deviceId, String charUuid, int v) async {
     try {
-      await UniversalBle.write(deviceId, SVC_LED, charUuid, Uint8List.fromList([v & 0xFF]), withoutResponse: false);
+      await UniversalBle.write(
+        deviceId,
+        SVC_LED,
+        charUuid,
+        Uint8List.fromList([v & 0xFF]),
+        withoutResponse: false,
+      );
     } catch (e) {
       _setStatus('Write failed: $e');
     }
@@ -917,19 +999,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final bd = ByteData.sublistView(bytes);
     bd.setUint16(0, v & 0xFFFF, Endian.little);
     try {
-      await UniversalBle.write(deviceId, SVC_LED, charUuid, bytes, withoutResponse: false);
+      await UniversalBle.write(
+        deviceId,
+        SVC_LED,
+        charUuid,
+        bytes,
+        withoutResponse: false,
+      );
     } catch (e) {
       _setStatus('Write failed: $e');
     }
   }
 
-  Future<void> _writeSlider(String deviceId, String charUuid, int v, {required int uiFallbackByte}) async {
+  Future<void> _writeSlider(
+    String deviceId,
+    String charUuid,
+    int v, {
+    required int uiFallbackByte,
+  }) async {
     try {
       if (SEND_SLIDERS_AS_U32) {
         final bytes = Uint8List(4);
         final bd = ByteData.sublistView(bytes);
         bd.setUint32(0, v >>> 0, Endian.little);
-        await UniversalBle.write(deviceId, SVC_LED, charUuid, bytes, withoutResponse: false);
+        await UniversalBle.write(
+          deviceId,
+          SVC_LED,
+          charUuid,
+          bytes,
+          withoutResponse: false,
+        );
       } else {
         // 1-byte payload (recommended MVP)
         await UniversalBle.write(
@@ -980,11 +1079,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!cardBox.hasSize || !rootBox.hasSize) return false;
 
     final cardTopLeft = cardBox.localToGlobal(Offset.zero);
-    final cardBottomRight = cardBox.localToGlobal(cardBox.size.bottomRight(Offset.zero));
+    final cardBottomRight = cardBox.localToGlobal(
+      cardBox.size.bottomRight(Offset.zero),
+    );
     final rootTopLeft = rootBox.localToGlobal(Offset.zero);
-    final rootBottomRight = rootBox.localToGlobal(rootBox.size.bottomRight(Offset.zero));
+    final rootBottomRight = rootBox.localToGlobal(
+      rootBox.size.bottomRight(Offset.zero),
+    );
 
-    return cardBottomRight.dy > rootTopLeft.dy && cardTopLeft.dy < rootBottomRight.dy;
+    return cardBottomRight.dy > rootTopLeft.dy &&
+        cardTopLeft.dy < rootBottomRight.dy;
   }
 
   void _startBatteryPolling(Duration interval, {bool immediate = false}) {
@@ -994,7 +1098,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (immediate) {
       _refreshBattery(showBusy: false);
     }
-    _batteryTimer = Timer.periodic(interval, (_) => _refreshBattery(showBusy: false));
+    _batteryTimer = Timer.periodic(
+      interval,
+      (_) => _refreshBattery(showBusy: false),
+    );
   }
 
   void _stopBatteryPolling() {
@@ -1155,7 +1262,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       ),
       bottomNavigationBar: _busy
-          ? LinearProgressIndicator(minHeight: 3, color: cs.primary, backgroundColor: cs.surfaceContainerHighest)
+          ? LinearProgressIndicator(
+              minHeight: 3,
+              color: cs.primary,
+              backgroundColor: cs.surfaceContainerHighest,
+            )
           : const SizedBox(height: 3),
     );
   }
@@ -1188,8 +1299,17 @@ class _ConnectionChip extends StatelessWidget {
     }
 
     return Chip(
-      label: Text(shortStatus(status), maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false),
-      avatar: Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, size: 18, color: fg),
+      label: Text(
+        shortStatus(status),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
+      ),
+      avatar: Icon(
+        connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+        size: 18,
+        color: fg,
+      ),
       backgroundColor: bg,
       side: const BorderSide(color: Colors.transparent),
       labelStyle: TextStyle(color: fg),
@@ -1216,15 +1336,23 @@ class _HeaderCard extends StatelessWidget {
             CircleAvatar(
               radius: 22,
               backgroundColor: connected ? cs.primary : cs.outlineVariant,
-              child: Icon(Icons.auto_awesome, color: connected ? cs.onPrimary : cs.onSurfaceVariant),
+              child: Icon(
+                Icons.auto_awesome,
+                color: connected ? cs.onPrimary : cs.onSurfaceVariant,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: connected
-                  ? Text(deviceName, style: Theme.of(context).textTheme.titleMedium)
+                  ? Text(
+                      deviceName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    )
                   : Text(
                       'Not connected',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
             ),
           ],
@@ -1235,7 +1363,11 @@ class _HeaderCard extends StatelessWidget {
 }
 
 class _ModeButtons extends StatelessWidget {
-  const _ModeButtons({required this.enabled, required this.mode, required this.onModeChanged});
+  const _ModeButtons({
+    required this.enabled,
+    required this.mode,
+    required this.onModeChanged,
+  });
 
   final bool enabled;
   final LedMode mode;
@@ -1255,21 +1387,30 @@ class _ModeButtons extends StatelessWidget {
         child: TextButton(
           onPressed: enabled ? () => onModeChanged(value) : null,
           style: ButtonStyle(
-            backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
+            backgroundColor: WidgetStateProperty.all(
+              cs.surfaceContainerHighest,
+            ),
             foregroundColor: WidgetStateProperty.all(textColor),
-            padding: WidgetStateProperty.all(EdgeInsets.symmetric(vertical: isActive ? 12 : 11)),
+            padding: WidgetStateProperty.all(
+              EdgeInsets.symmetric(vertical: isActive ? 12 : 11),
+            ),
             shape: WidgetStateProperty.all(
               RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
-                side: BorderSide(color: isActive ? kGold : cs.outlineVariant, width: isActive ? 2 : 1),
+                side: BorderSide(
+                  color: isActive ? kGold : cs.outlineVariant,
+                  width: isActive ? 2 : 1,
+                ),
               ),
             ),
           ),
           child: Text(
             label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(color: textColor, fontWeight: fontWeight, letterSpacing: 0.6),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: textColor,
+              fontWeight: fontWeight,
+              letterSpacing: 0.6,
+            ),
           ),
         ),
       );
@@ -1385,9 +1526,15 @@ class _SettingsCard extends StatelessWidget {
                   child: TextButton(
                     onPressed: enabled ? onBrightnessFineDown : null,
                     style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
-                      foregroundColor: WidgetStateProperty.all(cs.onSurfaceVariant),
-                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 11)),
+                      backgroundColor: WidgetStateProperty.all(
+                        cs.surfaceContainerHighest,
+                      ),
+                      foregroundColor: WidgetStateProperty.all(
+                        cs.onSurfaceVariant,
+                      ),
+                      padding: WidgetStateProperty.all(
+                        const EdgeInsets.symmetric(vertical: 11),
+                      ),
                       shape: WidgetStateProperty.all(
                         RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -1403,9 +1550,15 @@ class _SettingsCard extends StatelessWidget {
                   child: TextButton(
                     onPressed: enabled ? onBrightnessFineUp : null,
                     style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
-                      foregroundColor: WidgetStateProperty.all(cs.onSurfaceVariant),
-                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 11)),
+                      backgroundColor: WidgetStateProperty.all(
+                        cs.surfaceContainerHighest,
+                      ),
+                      foregroundColor: WidgetStateProperty.all(
+                        cs.onSurfaceVariant,
+                      ),
+                      padding: WidgetStateProperty.all(
+                        const EdgeInsets.symmetric(vertical: 11),
+                      ),
                       shape: WidgetStateProperty.all(
                         RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -1421,7 +1574,11 @@ class _SettingsCard extends StatelessWidget {
 
             const SizedBox(height: 8),
 
-            _ModeButtons(enabled: enabled, mode: mode, onModeChanged: onModeChanged),
+            _ModeButtons(
+              enabled: enabled,
+              mode: mode,
+              onModeChanged: onModeChanged,
+            ),
 
             const SizedBox(height: 4),
 
@@ -1478,7 +1635,10 @@ class _SettingsCard extends StatelessWidget {
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: FilledButton(onPressed: enabled ? onAutoNoiseFloor : null, child: const Text('AUTO')),
+                    child: FilledButton(
+                      onPressed: enabled ? onAutoNoiseFloor : null,
+                      child: const Text('AUTO'),
+                    ),
                   ),
                 ),
               ],
@@ -1541,8 +1701,12 @@ class _AudioDebugCard extends StatelessWidget {
       totalAeqBlocks += value.totalAeqBlocks;
     }
 
-    final clipPercent = totalSamples == 0 ? 0.0 : clippedSamples * 100.0 / totalSamples;
-    final saturationPercent = totalAeqBlocks == 0 ? null : saturatedBlocks * 100.0 / totalAeqBlocks;
+    final clipPercent = totalSamples == 0
+        ? 0.0
+        : clippedSamples * 100.0 / totalSamples;
+    final saturationPercent = totalAeqBlocks == 0
+        ? null
+        : saturatedBlocks * 100.0 / totalAeqBlocks;
     final current = telemetry;
 
     Widget metric(String label, String value, {bool warning = false}) {
@@ -1551,18 +1715,26 @@ class _AudioDebugCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: warning ? Colors.redAccent : cs.outlineVariant),
+          border: Border.all(
+            color: warning ? Colors.redAccent : cs.outlineVariant,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
             const SizedBox(height: 3),
             Text(
               value,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: warning ? Colors.redAccent : null, fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: warning ? Colors.redAccent : null,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -1578,7 +1750,12 @@ class _AudioDebugCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: Text('Audio Debug', style: Theme.of(context).textTheme.titleMedium)),
+                Expanded(
+                  child: Text(
+                    'Audio Debug',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
                 TextButton.icon(
                   onPressed: onToggleFreeze,
                   icon: Icon(frozen ? Icons.play_arrow : Icons.pause),
@@ -1601,13 +1778,23 @@ class _AudioDebugCard extends StatelessWidget {
                   peak == 0 ? '—' : '${_dbfs(peak).toStringAsFixed(1)} dBFS',
                   warning: peak >= 29204,
                 ),
-                metric('Mic clipping (10 s)', '${clipPercent.toStringAsFixed(3)}%', warning: clippedSamples > 0),
+                metric(
+                  'Mic clipping (10 s)',
+                  '${clipPercent.toStringAsFixed(3)}%',
+                  warning: clippedSamples > 0,
+                ),
                 metric(
                   'AEQ saturation (10 s)',
-                  saturationPercent == null ? '—' : '${saturationPercent.toStringAsFixed(1)}%',
+                  saturationPercent == null
+                      ? '—'
+                      : '${saturationPercent.toStringAsFixed(1)}%',
                   warning: saturationPercent != null && saturationPercent > 10,
                 ),
-                metric('Dropped blocks', '$droppedBlocks', warning: droppedBlocks > 0),
+                metric(
+                  'Dropped blocks',
+                  '$droppedBlocks',
+                  warning: droppedBlocks > 0,
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -1615,7 +1802,10 @@ class _AudioDebugCard extends StatelessWidget {
               height: 170,
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(6, 8, 6, 4),
-              decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: CustomPaint(
                 painter: _AudioChartPainter(points: points, frozen: frozen),
               ),
@@ -1638,7 +1828,9 @@ class _AudioDebugCard extends StatelessWidget {
                         'AEQ ${(current.output * 100 / 32767).clamp(0, 100).toStringAsFixed(0)}%  •  '
                         'Floor ${_dbfs(current.floor).toStringAsFixed(1)} dBFS  •  '
                         'Ceiling ${_dbfs(current.ceiling).toStringAsFixed(1)} dBFS',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             ),
           ],
         ),
@@ -1686,9 +1878,12 @@ class _AudioChartPainter extends CustomPainter {
     final durationMs = const Duration(seconds: 30).inMilliseconds.toDouble();
 
     double xFor(DateTime time) =>
-        ((time.difference(start).inMilliseconds / durationMs) * size.width).clamp(0, size.width);
-    double dbY(int value) => size.height * (1 - ((_dbfs(value).clamp(-60, 0) + 60) / 60));
-    double outputY(int value) => size.height * (1 - (value / 32767).clamp(0.0, 1.0));
+        ((time.difference(start).inMilliseconds / durationMs) * size.width)
+            .clamp(0, size.width);
+    double dbY(int value) =>
+        size.height * (1 - ((_dbfs(value).clamp(-60, 0) + 60) / 60));
+    double outputY(int value) =>
+        size.height * (1 - (value / 32767).clamp(0.0, 1.0));
 
     Path pathFor(double Function(_AudioTelemetry value) yFor) {
       final path = Path();
@@ -1785,7 +1980,10 @@ class _BatteryCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.battery_full, color: cs.onSurfaceVariant),
+                            Icon(
+                              Icons.battery_full,
+                              color: cs.onSurfaceVariant,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: ClipRRect(
@@ -1824,7 +2022,12 @@ class _BatteryCard extends StatelessWidget {
 }
 
 class _NfcLinkCard extends StatelessWidget {
-  const _NfcLinkCard({required this.enabled, required this.saving, required this.controller, required this.onSave});
+  const _NfcLinkCard({
+    required this.enabled,
+    required this.saving,
+    required this.controller,
+    required this.onSave,
+  });
 
   final bool enabled;
   final bool saving;
@@ -1845,7 +2048,9 @@ class _NfcLinkCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'This is the link opened when a phone scans the necklace.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -1870,7 +2075,11 @@ class _NfcLinkCard extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: enabled ? onSave : null,
                 icon: saving
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.nfc),
                 label: Text(saving ? 'Saving...' : 'Save link'),
               ),
@@ -1896,9 +2105,12 @@ class _FieldShell extends StatelessWidget {
         Text(title, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 6),
         Theme(
-          data: Theme.of(
-            context,
-          ).copyWith(inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: cs.surfaceContainerHighest)),
+          data: Theme.of(context).copyWith(
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: cs.surfaceContainerHighest,
+            ),
+          ),
           child: child,
         ),
       ],
@@ -1932,18 +2144,28 @@ class _LabeledSlider extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(child: Text(title, style: Theme.of(context).textTheme.labelLarge)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
               Text(
-                (divisions == 13 ? value.toStringAsFixed(1) : value.round().toString()),
-                style: Theme.of(
-                  context,
-                ).textTheme.labelLarge?.copyWith(color: enabled ? cs.primary : cs.onSurfaceVariant),
+                (divisions == 13
+                    ? value.toStringAsFixed(1)
+                    : value.round().toString()),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: enabled ? cs.primary : cs.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -1954,7 +2176,9 @@ class _LabeledSlider extends StatelessWidget {
             min: min,
             max: max,
             divisions: divisions,
-            label: divisions == 13 ? value.toStringAsFixed(1) : value.round().toString(),
+            label: divisions == 13
+                ? value.toStringAsFixed(1)
+                : value.round().toString(),
             onChanged: onChanged,
           ),
         ],
