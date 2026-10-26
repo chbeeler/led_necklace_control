@@ -840,7 +840,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return AlertDialog(
           title: const Text('Shut down necklace?'),
           content: const Text(
-            'After proceeding, the necklace can only be turned back on by providing USB power.',
+            'After proceeding, the necklace can only be turned back on by providing USB power or by using the device buttons.',
           ),
           actions: [
             TextButton(
@@ -1470,9 +1470,15 @@ class _ModeButtonsState extends State<_ModeButtons> {
             const SizedBox(width: 8),
             buildButton('ON', LedMode.solid),
             const SizedBox(width: 8),
-            buildButton('EQ', LedMode.eq),
+            buildButton('AEQ \u266B\uFE0E', LedMode.aeq, hiddenHold: true),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            buildButton('CUSTOM EQ \u266B\uFE0E', LedMode.eq),
             const SizedBox(width: 8),
-            buildButton('AEQ', LedMode.aeq, hiddenHold: true),
+            buildButton('FIREFLY', LedMode.firefly),
           ],
         ),
       ],
