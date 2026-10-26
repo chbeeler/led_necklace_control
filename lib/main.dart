@@ -249,6 +249,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _nfcSupported = false;
   bool _nfcSaving = false;
   bool _audioTelemetrySupported = false;
+  bool _audioDebugVisible = false;
   bool _audioFrozen = false;
   _AudioTelemetry? _audioTelemetry;
   final List<_AudioPoint> _audioPoints = [];
@@ -821,6 +822,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  void _toggleAudioDebugVisibility() {
+    final visible = !_audioDebugVisible;
+    setState(() => _audioDebugVisible = visible);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Audio debug ${visible ? 'enabled' : 'hidden'}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+  }
+
   Future<void> _confirmAndShutdown() async {
     if (!_connected || _busy) return;
 
@@ -1187,6 +1201,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             onBrightnessFineUp: () => _fineAdjustBrightness(1),
             mode: _mode,
             onModeChanged: _debouncedWriteMode,
+            onAeqHeld: _toggleAudioDebugVisibility,
             filter: _filter,
             filterLabel: '${_filter.round()}',
             onFilterChanged: _debouncedWriteFilter,
@@ -1204,7 +1219,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             recentMaxVolume: _recentMaxVolume,
           ),
 
-          if (_audioTelemetrySupported) ...[
+          if (_audioTelemetrySupported && _audioDebugVisible) ...[
             const SizedBox(height: 4),
             _AudioDebugCard(
               telemetry: _audioTelemetry,
@@ -1362,57 +1377,103 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _ModeButtons extends StatelessWidget {
+class _ModeButtons extends StatefulWidget {
   const _ModeButtons({
     required this.enabled,
     required this.mode,
     required this.onModeChanged,
+    required this.onAeqHeld,
   });
 
   final bool enabled;
   final LedMode mode;
   final ValueChanged<LedMode> onModeChanged;
+  final VoidCallback onAeqHeld;
+
+  @override
+  State<_ModeButtons> createState() => _ModeButtonsState();
+}
+
+class _ModeButtonsState extends State<_ModeButtons> {
+  Timer? _aeqHoldTimer;
+  bool _aeqHoldTriggered = false;
+
+  void _startAeqHold() {
+    if (!widget.enabled) return;
+    _aeqHoldTimer?.cancel();
+    _aeqHoldTriggered = false;
+    _aeqHoldTimer = Timer(const Duration(seconds: 2), () {
+      _aeqHoldTriggered = true;
+      widget.onAeqHeld();
+    });
+  }
+
+  void _stopAeqHold() {
+    _aeqHoldTimer?.cancel();
+    _aeqHoldTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _aeqHoldTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    Widget buildButton(String label, LedMode value) {
-      final active = mode == value;
-      final isActive = enabled && active;
+    Widget buildButton(String label, LedMode value, {bool hiddenHold = false}) {
+      final active = widget.mode == value;
+      final isActive = widget.enabled && active;
       final textColor = isActive ? kText : cs.onSurfaceVariant;
       final fontWeight = isActive ? FontWeight.w800 : FontWeight.w400;
 
-      return Expanded(
-        child: TextButton(
-          onPressed: enabled ? () => onModeChanged(value) : null,
-          style: ButtonStyle(
-            backgroundColor: WidgetStateProperty.all(
-              cs.surfaceContainerHighest,
-            ),
-            foregroundColor: WidgetStateProperty.all(textColor),
-            padding: WidgetStateProperty.all(
-              EdgeInsets.symmetric(vertical: isActive ? 12 : 11),
-            ),
-            shape: WidgetStateProperty.all(
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: BorderSide(
-                  color: isActive ? kGold : cs.outlineVariant,
-                  width: isActive ? 2 : 1,
-                ),
+      final button = TextButton(
+        onPressed: widget.enabled
+            ? () {
+                if (hiddenHold && _aeqHoldTriggered) {
+                  _aeqHoldTriggered = false;
+                  return;
+                }
+                widget.onModeChanged(value);
+              }
+            : null,
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
+          foregroundColor: WidgetStateProperty.all(textColor),
+          padding: WidgetStateProperty.all(
+            EdgeInsets.symmetric(vertical: isActive ? 12 : 11),
+          ),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(
+                color: isActive ? kGold : cs.outlineVariant,
+                width: isActive ? 2 : 1,
               ),
             ),
           ),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: textColor,
-              fontWeight: fontWeight,
-              letterSpacing: 0.6,
-            ),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: textColor,
+            fontWeight: fontWeight,
+            letterSpacing: 0.6,
           ),
         ),
+      );
+
+      return Expanded(
+        child: hiddenHold
+            ? Listener(
+                onPointerDown: (_) => _startAeqHold(),
+                onPointerUp: (_) => _stopAeqHold(),
+                onPointerCancel: (_) => _stopAeqHold(),
+                child: button,
+              )
+            : button,
       );
     }
 
@@ -1429,7 +1490,7 @@ class _ModeButtons extends StatelessWidget {
             const SizedBox(width: 8),
             buildButton('EQ', LedMode.eq),
             const SizedBox(width: 8),
-            buildButton('AEQ', LedMode.aeq),
+            buildButton('AEQ', LedMode.aeq, hiddenHold: true),
           ],
         ),
       ],
@@ -1447,6 +1508,7 @@ class _SettingsCard extends StatelessWidget {
     required this.onBrightnessFineUp,
     required this.mode,
     required this.onModeChanged,
+    required this.onAeqHeld,
     required this.filter,
     required this.filterLabel,
     required this.onFilterChanged,
@@ -1474,6 +1536,7 @@ class _SettingsCard extends StatelessWidget {
 
   final LedMode mode;
   final ValueChanged<LedMode> onModeChanged;
+  final VoidCallback onAeqHeld;
 
   final double filter;
   final String filterLabel;
@@ -1578,6 +1641,7 @@ class _SettingsCard extends StatelessWidget {
               enabled: enabled,
               mode: mode,
               onModeChanged: onModeChanged,
+              onAeqHeld: onAeqHeld,
             ),
 
             const SizedBox(height: 4),
