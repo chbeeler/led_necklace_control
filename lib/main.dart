@@ -1535,6 +1535,9 @@ class _SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final sensitivityEnabled =
+        enabled && (mode == LedMode.eq || mode == LedMode.aeq);
+    final eqControlsEnabled = enabled && mode == LedMode.eq;
 
     return Card(
       elevation: 0,
@@ -1624,12 +1627,12 @@ class _SettingsCard extends StatelessWidget {
             _LabeledSlider(
               title: 'EQ Sensitivity',
               subtitle: '0..1000 • $sensitivityLabel',
-              enabled: enabled,
+              enabled: sensitivityEnabled,
               value: sensitivity,
               min: 0,
               max: 1000,
               divisions: 500,
-              onChanged: enabled ? onSensitivityChanged : null,
+              onChanged: sensitivityEnabled ? onSensitivityChanged : null,
             ),
 
             const SizedBox(height: 4),
@@ -1637,12 +1640,12 @@ class _SettingsCard extends StatelessWidget {
             _LabeledSlider(
               title: 'EQ Reaction Speed',
               subtitle: '0..255 • $filterLabel',
-              enabled: enabled,
+              enabled: eqControlsEnabled,
               value: filter,
               min: 0,
               max: 255,
               divisions: 255,
-              onChanged: enabled ? onFilterChanged : null,
+              onChanged: eqControlsEnabled ? onFilterChanged : null,
             ),
 
             const SizedBox(height: 4),
@@ -1650,12 +1653,12 @@ class _SettingsCard extends StatelessWidget {
             _LabeledSlider(
               title: 'EQ Noise Floor',
               subtitle: '0..1500 • $noiseFloorLabel',
-              enabled: enabled,
+              enabled: eqControlsEnabled,
               value: noise_floor,
               min: 0,
               max: 1500,
               divisions: 750,
-              onChanged: enabled ? onNoiseFloorChanged : null,
+              onChanged: eqControlsEnabled ? onNoiseFloorChanged : null,
             ),
 
             const SizedBox(height: 8),
@@ -1675,7 +1678,7 @@ class _SettingsCard extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: FilledButton(
-                      onPressed: enabled ? onAutoNoiseFloor : null,
+                      onPressed: eqControlsEnabled ? onAutoNoiseFloor : null,
                       child: const Text('AUTO'),
                     ),
                   ),
